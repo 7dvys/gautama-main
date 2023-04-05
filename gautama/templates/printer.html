@@ -236,18 +236,24 @@
             }else{
                 const currentRow = this.getLastRow();
                 const value = currentRow.getInputValues().code.value
-                this.checkCode(value.trim()).then(e=>{
-                    if(e){
-                        currentRow.setInputTrue();
-                        currentRow.setTitle(e);
-                        this.sendPrint();
-                    }else{
-                        currentRow.setInputFalse();
-                    }
-                    currentRow.setChangeDetect();
-                    this.buttons['print'].clearLoading();
-                    this.buttons['print'].unblock();
-                })
+                
+                if(Object.keys(this.cacheKeys).indexOf(value)>=0){
+                    currentRow.setInputTrue();
+                    currentRow.setTitle(this.cacheKeys[value]);
+                }else{
+                    
+                    this.checkCode(value.trim()).then(e=>{
+                        if(e){
+                            currentRow.setInputTrue();
+                            currentRow.setTitle(e);
+                        }else{
+                            currentRow.setInputFalse();
+                        }   
+                    })
+                }
+                currentRow.setChangeDetect();
+                this.buttons['print'].clearLoading();
+                this.buttons['print'].unblock();
             }
 
             this.rows[id]=row;
@@ -270,7 +276,6 @@
         }
 
         setLastRowFocus(){
-            
             this.getLastRow().focusSelf();
         }
 
@@ -283,29 +288,49 @@
         }
         
         print(){
+            let state = true;
+            let currentRowCount = this.rows.length;
             for(const row in this.rows){
+                currentRowCount--;
                 const currentRow = this.rows[row];
                 const value = currentRow.getInputValues().code.value
                 const quantity = currentRow.getInputValues().quantity.value
 
                 if (quantity >0) {
-
                     if(value.trim() != '' ){
                         this.buttons['print'].block();
                         this.buttons['print'].loading();
-
-                        this.checkCode(value.trim()).then(e=>{
-                            if(e){
-                                currentRow.setInputTrue();
-                                currentRow.setTitle(e);
-                                this.sendPrint();
-                            }else{
-                                currentRow.setInputFalse();
-                            }
+                        if(Object.keys(this.cacheKeys).indexOf(value)>=0){
+                            currentRow.setInputTrue();
+                            currentRow.setTitle(this.cacheKeys[value]);
                             currentRow.setChangeDetect();
                             this.buttons['print'].clearLoading();
                             this.buttons['print'].unblock();
-                        })
+
+                            if(currentRowCount == 0 && state == true){
+                                this.sendPrint()
+                            }
+                            
+                        }else{
+                            this.checkCode(value.trim()).then(e=>{
+                                if(e){
+                                    currentRow.setInputTrue();
+                                    currentRow.setTitle(e);
+                                }else{
+                                    currentRow.setInputFalse();
+                                    state = false;
+                                }
+
+
+                                currentRow.setChangeDetect();
+                                this.buttons['print'].clearLoading();
+                                this.buttons['print'].unblock();
+
+                                if(currentRowCount == 0 && state == true){
+                                    this.sendPrint()
+                                }
+                            })
+                        } 
                     }else{
                         if(this.rows.length > 1 && currentRow.id != 0){
                             this.removeRow(currentRow);
@@ -315,6 +340,7 @@
             }
         }
 
+        
         sendPrint(){
             const form = this.labels.parentElement;
             const formData = new FormData(form);
@@ -327,7 +353,10 @@
                     i++;
                 }else{
                     if(key !== '' && value !== ''){
-                        data[key]=[parseInt(value),this.cacheKeys[key].slice(0,17)+'...'];
+                        console.log(this.cacheKeys)
+                        console.log(this.cacheKeys[key])
+                        console.log(key)
+                        data[key]=[parseInt(value),this.cacheKeys[key].slice(0,28)+'...'];
                     }
                     key='';
                     i=0;
