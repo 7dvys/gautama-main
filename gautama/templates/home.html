@@ -1,0 +1,18 @@
+{% extends "layout/default.html" %}
+{% block content %}
+<div class="container-xl mt-4">
+    <div class="row">
+      {% for module in modules %}
+      <div class="card m-2" style="width: 18rem;">
+        <div class="card-body">
+          <h5 class="card-title">{{ module['titulo']}}</h5>
+          <p class="card-text">
+          {{ module['descripcion']}}
+          </p>
+          <a href="{{url_for(module['url_endpoint'])}}" class="btn btn-primary" >ir a {{module['titulo']}} </a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+</div>
+{% endblock %}

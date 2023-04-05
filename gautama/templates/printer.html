@@ -1,0 +1,661 @@
+{% extends "layout/default.html" %}
+{% block content %}
+
+<div class="container my-4 ">
+    <div class="card w-50 text-center mt-4 mx-auto" id="main-card">
+        <div class="card-header">
+            <ul class="nav nav-tabs card-header-tabs" id="nav">
+                <li class="nav-item">
+                    <span class="nav-link active printer text-secondary-emphasis user-select-none" aria-current="true"  href="#">Printer</span>
+                </li>
+                <li class="nav-item">
+                    <span class="zpl nav-link text-secondary-emphasis user-select-none" aria-current="true" href="#">ZPL</span>
+                </li>
+                <li class="nav-item">
+                    <span class="printerWork nav-link text-secondary-emphasis user-select-none" aria-current="true" href="#">Cola de impresion</span>
+                </li>
+               
+            </ul>
+        </div>
+
+        <!-- PRINTER BODY -->
+        <div class="card-body" id="printer">
+            <form name="print" enctype="application/x-www-form-urlencoded" method="post">
+                <div class="labels my-4 justify-content-center">
+                    
+                </div>      
+            </form>
+            <div class="btn-toolbar justify-content-between">
+
+                <div class="btn-group">
+                    <button type="button" class="btn btn-dark" value="appendNewCode">
+                        <span class="state">nuevo codigo</span>
+                        <span class="spinner-border spinner-border-sm visually-hidden" role="status" aria-hidden="true"></span>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary user-select-all" value="newCode" disabled="true" ></button>
+                </div>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-success" value="append">agregar</button>
+
+                    <button type="button" class="btn btn-primary" value="print">
+                        <span class="state">imprimir</span>
+                        <span class="spinner-border spinner-border-sm visually-hidden" role="status" aria-hidden="true"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- MERCADO LIBRE ZPL BODY  -->
+        <div class="card-body visually-hidden" id="zpl">
+            <form name="zpl" enctype="application/x-www-form-urlencoded" method="post">
+                <div class="mb-3 text-start">
+                    <label for="exampleFormControlTextarea1" class="form-label user-select-none">coloca aqui tu ZPL</label>
+                    <textarea class="form-control" name="zpl" id="exampleFormControlTextarea1" rows="3"></textarea>
+                </div>    
+            </form>
+            <div class="btn-toolbar justify-content-end">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-danger" value="delete">borrar</button>
+
+                    <button type="button" class="btn btn-primary" value="print">
+                        <span class="state">imprimir</span>
+                        <span class="spinner-border spinner-border-sm visually-hidden" role="status" aria-hidden="true"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- COLA DE IMPRESION BODY -->
+        <div class="card-body visually-hidden" id="printerWork">
+            <table class="table table-xl ">
+                <caption>trabajos en cola de impresion: <strong>0</strong> </caption>
+                <thead>
+                    <tr>
+                        <th>id</th>
+                        <th>impresora</th>
+                        <th>fecha</th>
+                        <th>-</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                </tbody>
+                    
+            </table>
+
+            <div class="btn-toolbar justify-content-end">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-danger" value="cancelAll" >cancelar actual</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+<script type="module">
+
+    // Fetch Metods => promise => json
+    function fetchGet(endpoint){
+        const url = "{{request.url_root[:-1]}}"+endpoint;
+        const promise = fetch(url,{
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+            }
+        })
+        .then(response => response.json())    
+        return promise;    
+    }
+
+    function fetchPost(endpoint,data=''){
+        const url = "{{request.url_root[:-1]}}"+endpoint;
+        const promise = fetch(url,{
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+
+            },
+            body: JSON.stringify(data),
+            })
+            .then(response => response.json())
+            
+        return promise
+    }    
+
+    // PRINTER CLASS    
+    class Printer{
+        constructor(printerDiv){
+            this.printer = printerDiv;
+            this.rowsCounter = 0;
+            this.labels = printerDiv.getElementsByClassName('labels')[0];
+            this.rows= [];
+            this.buttons = [];
+            this.setButtons();
+            this.updateNewCodeButton()
+            this.appendNewRow()
+            this.setLastRowFocus();
+
+        }
+
+        setButtons(){
+            const buttons = this.printer.getElementsByTagName('button');
+            for (let button of buttons){
+                button.setText = function(text){
+                    this.textContent = text;
+                }
+
+                button.block = function(){
+                    this.setAttribute('disabled',true);
+                }
+
+                button.unblock = function(){
+                    this.removeAttribute('disabled');
+                }
+
+                if(button.value == 'appendNewCode' || button.value == 'print'){
+                    button.loading = function(){
+                        this.children[0].classList.add('visually-hidden')
+                        this.children[1].classList.remove('visually-hidden')
+                    }
+
+                    button.clearLoading = function(){
+                        this.children[0].classList.remove('visually-hidden')
+                        this.children[1].classList.add('visually-hidden')
+                    }
+                }
+
+                button.addEventListener('click',()=>{
+                    switch (button.value) {
+                        case 'appendNewCode':
+                            // this.updateNewCodeButton();
+                            this.appendNewCode()
+                            break;
+                        
+                        case 'append':
+                            this.appendNewRow()
+                            break;
+                        
+                        case 'print':
+                            this.print()
+                            break;
+                    }
+                })
+
+
+                this.buttons[button.value]=button
+            } 
+        }
+
+        getNewCode(){
+            const endpoint = "{{url_for('cbapi.code')}}?new_code"
+            return fetchGet(endpoint)
+        }
+
+        updateNewCodeButton(){
+            this.buttons['appendNewCode'].block();
+            this.buttons['appendNewCode'].loading();
+            
+            this.getNewCode()
+            .then(e=>{
+                this.buttons['newCode'].setText(e);
+                this.buttons['appendNewCode'].clearLoading();
+                this.buttons['appendNewCode'].unblock();
+                this.newCode = e;
+            })
+        }
+
+        appendNewCode(){
+            if(!this.newCode){
+                this.updateNewCodeButton();
+                this.appendNewRow(this.newCode);
+            }else{
+                this.appendNewRow(this.newCode);
+                this.updateNewCodeButton();
+            }
+        }
+
+        appendNewRow(withCode=''){
+            const id = this.rowsCounter;
+            const row = new Row(this.labels,id,withCode);
+            row.getRemoveButton().addEventListener('click',()=>{
+                this.removeRow(row)
+            })
+
+            if(this.rows.length == 0){
+                row.blockRemoveButton()
+            }
+
+            this.rows[id]=row;
+            this.rowsCounter++
+
+            this.setLastRowFocus();
+        }  
+
+        removeRow(row){
+            delete this.rows[row.removeRow()]
+            this.setLastRowFocus();
+        }
+
+        checkCode(code){
+            const endpoint = "{{ url_for('cbapi.code')}}?search="+code
+            return fetchGet(endpoint)
+        }
+
+        setLastRowFocus(){
+            let lastRow;
+            for(const row in this.rows){
+                lastRow=this.rows[row];
+            }
+            lastRow.focusSelf();
+        }
+        
+        print(){
+            for(const row in this.rows){
+                const currentRow = this.rows[row];
+                const value = currentRow.getInputValues().code.value
+                const quantity = currentRow.getInputValues().quantity.value
+
+                if (quantity >0) {
+
+                    if(value.trim() != '' ){
+                        this.buttons['print'].block();
+                        this.buttons['print'].loading();
+
+                        this.checkCode(value.trim()).then(e=>{
+                            if(e){
+                                currentRow.setInputTrue();
+                                currentRow.setTitle(e);
+                                this.sendPrint();
+                            }else{
+                                currentRow.setInputFalse();
+                            }
+                            currentRow.setChangeDetect();
+                            this.buttons['print'].clearLoading();
+                            this.buttons['print'].unblock();
+                        })
+                    }else{
+                        if(this.rows.length > 1 && currentRow.id != 0){
+                            this.removeRow(currentRow);
+                        }
+                    }
+                }
+            }
+        }
+
+        sendPrint(){
+            const form = this.labels.parentElement;
+            const formData = new FormData(form);
+            let data = {};
+            let key='';
+            let i = 0;
+            for(const value of formData.values()){
+                if (i==0) {
+                    key=`${value}`;
+                    i++;
+                }else{
+                    if(key !== '' && value !== ''){
+                        data[key]=parseInt(value);
+                    }
+                    key='';
+                    i=0;
+                }
+            }
+
+            if (Object.keys(data).length !== 0){
+            const endpoint = "{{ url_for('printer.print_endpoint') }}?labels";
+            fetchPost(endpoint,data).then(e=>{
+                printerWork.printWorks()
+
+            })
+            }
+        }
+    }
+
+    class Row{
+        constructor(labels,id,code=''){
+            this.id=id;
+            this.body = this.setRow(code);
+            labels.append(this.body);
+        }
+
+        setRow(code){
+            const newrow = document.createElement('div');
+            newrow.classList.add('mb-2','input-group');
+
+            const inputCode = document.createElement('input');
+            inputCode.name='code';
+            inputCode.type='text';
+            inputCode.classList.add('form-control');
+            inputCode.placeholder='Codigo';
+            inputCode.ariaLabel='Codigo';
+            inputCode.value=code;
+            inputCode.setAttribute('autocomplete','off')
+
+            const inputQuant = document.createElement('input');
+            inputQuant.name='quantity';
+            inputQuant.type='number';
+            inputQuant.setAttribute('min','1')
+            inputQuant.value=1;
+            inputQuant.classList.add('form-control');
+            inputQuant.placeholder='Cantidad';
+            inputQuant.ariaLabel='Cantidad';
+            inputCode.setAttribute('autocomplete','off')
+
+            const removeButton = document.createElement('button');
+            removeButton.classList.add('btn','btn-danger')
+            removeButton.type = 'button'
+            removeButton.textContent = '-'
+
+            newrow.appendChild(inputCode);
+            newrow.appendChild(inputQuant);
+            newrow.appendChild(removeButton);
+
+            return newrow;
+        }
+
+        removeRow(){
+            this.body.remove()
+            return this.id;
+        }
+
+        getRemoveButton(){
+            return this.body.getElementsByTagName('button')[0];
+        }
+
+        blockRemoveButton(){
+            this.getRemoveButton().setAttribute('disabled','true')
+        }
+
+        unblockRemoveButton(){
+            this.getRemoveButton().removeAttribute('disabled')
+        }
+
+        getInputValues(){
+            let values = this.body.getElementsByTagName('input');
+            return values
+        }
+
+        setInputFalse(){
+            for(const input of this.getInputValues()){
+                input.classList.add('border','border-danger')
+            }
+        }
+
+        setInputTrue(){
+            for(const input of this.getInputValues()){
+                input.classList.add('border','border-success')
+            }
+        }
+
+        setInputClear(){
+            for(const input of this.getInputValues()){
+                input.classList.remove('border','border-danger')
+                input.classList.remove('border','border-success')
+                this.clearTitle();
+            }
+        }
+
+        focusSelf(){
+            this.getInputValues()['code'].focus();
+    
+        }
+        
+        setTitle(text){
+            this.getInputValues()['code'].title = text;
+        }
+
+        clearTitle(){
+            this.getInputValues()['code'].title = '';
+        }
+        
+        setChangeDetect(){
+            this.getInputValues()['code'].addEventListener('input',e=>{
+                this.setInputClear();
+            },{once:true})
+        }
+    }
+
+    const printerDiv = document.getElementById('printer')
+    const printer = new Printer(printerDiv);   
+
+    // MERCADO LIBRE ZPL HANDLER
+    class ZplHandler{
+        constructor(zplBody){
+            this.buttons = [];
+            this.body = zplBody;
+            this.setButtons()
+        }
+
+        sendPrint(){
+            const form = this.body.getElementsByTagName('form')[0];
+            const formData = new FormData(form);
+            let zpl = '';
+            for(const value of formData.values()){
+                zpl = value;
+            }
+
+            if (Object.keys(zpl).length !== 0){
+                this.buttons['print'].block();
+                this.buttons['print'].loading();
+                const endpoint = "{{ url_for('printer.print_endpoint') }}?zpl";
+                fetchPost(endpoint,zpl).then(e=>{
+                    this.buttons['print'].unblock();
+                    this.buttons['print'].clearLoading();
+                    console.log("imprimiendo")
+                    printerWork.printWorks()
+                }).catch(e=>{
+                    this.buttons['print'].unblock();
+                    this.buttons['print'].clearLoading();
+                })
+            }
+        }
+
+        deleteText(){
+            this.body.getElementsByTagName('textarea')[0].value = '';
+            // this.body.getElementsByTagName['textarea'][0].textContent = '';
+        }
+        
+        setButtons(){
+            const buttons = this.body.getElementsByTagName('button');
+            for (let button of buttons){
+                button.block = function(){
+                    this.setAttribute('disabled',true);
+                }
+
+                button.unblock = function(){
+                    this.removeAttribute('disabled');
+                }
+
+                if(button.value == 'print'){
+                    button.loading = function(){
+                        this.children[0].classList.add('visually-hidden')
+                        this.children[1].classList.remove('visually-hidden')
+                    }
+
+                    button.clearLoading = function(){
+                        this.children[0].classList.remove('visually-hidden')
+                        this.children[1].classList.add('visually-hidden')
+                    }
+                }
+
+                button.addEventListener('click',()=>{
+                    switch (button.value) {
+                        case 'delete':
+                            this.deleteText()
+                            break;
+                        
+                        case 'print':
+                            this.sendPrint()
+                            this.deleteText()
+                            break;
+                    }
+                })
+
+
+                this.buttons[button.value]=button
+            } 
+        }
+    }
+
+    const zplBody = document.getElementById('zpl');
+    const zpl = new ZplHandler(zplBody);
+
+    // PRINTER WORK o PRINTER QUEUE
+    class PrinterWork{
+        constructor(printerWorkBody){
+            this.body = printerWorkBody;
+            this.setButtons()
+            this.setTable()
+            this.printWorks()
+        }
+
+        setTable(){
+            this.table = this.body.getElementsByTagName('table')[0]
+        }
+        
+        getWorks(){
+            const endpoint = "{{ url_for('printer.print_endpoint') }}?getWorks"
+            return fetchGet(endpoint)
+        }
+
+        printWorks(){
+            const tbody = this.table.getElementsByTagName('tbody')[0]
+
+            while(tbody.firstChild){
+                tbody.removeChild(tbody.lastChild)
+            }
+            
+            this.getWorks().then(works=>{
+                
+                this.countWorks=0;
+                for(const id in works){
+                    this.countWorks++;
+                    const tr = document.createElement('tr');
+
+                    const tdId = document.createElement('td');
+                    tdId.textContent = id;
+                    const tdPrinter = document.createElement('td');
+                    tdPrinter.textContent = works[id].printer;
+                    const tdDate = document.createElement('td');
+                    tdDate.textContent = works[id].date;
+
+                    const tdDelButton = document.createElement('td');
+                    const printerAndId =works[id].printer +'-'+id
+                    tdDelButton.append(this.getDelButton(printerAndId))
+                    
+
+                    tr.append(tdId,tdPrinter,tdDate,tdDelButton)
+                    tbody.prepend(tr)
+                }
+
+                this.setCountCaption(this.countWorks);
+            })
+        }
+
+        setCountCaption(){
+            const caption = this.table.getElementsByTagName('caption')[0]
+            const captionStrong = caption.getElementsByTagName('strong')[0];
+            captionStrong.textContent = this.countWorks;
+        }
+
+        setEventDelButton(button){
+            button.addEventListener('click',e=>{
+                this.cancelWork(button)
+            },{once:true})
+        }
+
+        removeWork(button){
+            button.parentElement.parentElement.remove()
+            this.countWorks--;
+            this.setCountCaption();
+        }
+
+        cancelWork(button){
+            const work = encodeURI(button.value)
+            const endpoint= "{{url_for('printer.print_endpoint')}}?cancelWork="+button.value
+            fetchGet(endpoint).then(e=>{console.log(e)})
+            this.removeWork(button);
+        }
+
+
+        getDelButton(printerAndId){
+            const button = document.createElement('button')
+            button.setAttribute('value',printerAndId)
+            button.textContent = '-';
+
+            button.classList.add('btn','btn-danger')
+
+            this.setEventDelButton(button)
+
+            return button;
+        }
+        
+        setButtons(){
+            const button = this.body.getElementsByTagName('button')[0];
+            button.addEventListener('click',e=>{
+                const endpoint = "{{url_for('printer.print_endpoint')}}?cancelCurrentWork";
+
+                fetchGet(endpoint).then(e=>{
+                    console.log(e)
+                })
+            })
+            
+        }
+    }
+
+    const printerWorkBody = document.getElementById('printerWork');
+    const printerWork = new PrinterWork(printerWorkBody)
+    
+    // NAV HANDLER
+    class NavHandler{
+        constructor(mainCard){
+            this.card = mainCard;
+            this.setNavs();
+            this.setBodys();
+            this.setVisibleBody(this.navs[0].children[0])
+        }
+
+        setNavs(){
+            const navs = this.card.getElementsByClassName('nav')
+            this.navs = navs.nav.children;
+            for(const nav of this.navs){
+                nav.addEventListener('click',e=>{this.setActive(e.target)});
+            }
+        }
+
+        setBodys(){
+            const bodys = this.card.getElementsByClassName('card-body')
+            this.bodys = bodys;
+        }
+
+        setActive(span){
+            for(const nav of this.navs){
+                nav.children[0].classList.remove('active')
+            }
+            span.classList.add('active')
+            this.setVisibleBody(span)
+        }
+
+        setVisibleBody(span){
+            for(const body of this.bodys){
+                body.classList.add('visually-hidden')
+            }
+
+            if(span.classList.contains('printer')){
+                this.bodys['printer'].classList.remove('visually-hidden')
+            }else if(span.classList.contains('printerWork')){
+                this.bodys['printerWork'].classList.remove('visually-hidden')
+            }else if(span.classList.contains('zpl')){
+                this.bodys['zpl'].classList.remove('visually-hidden')
+
+            }
+        }
+
+    }
+    
+    const mainCard = document.getElementById('main-card');
+    const navHandler = new NavHandler(mainCard);
+
+</script>
+{% endblock %}
