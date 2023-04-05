@@ -17,13 +17,15 @@ class Printer:
             for e in data:
                 code = e
                 # '0'*(8 - len(str(e)))+str(e)
-                for label in range(data[e]):
+                for label in range(data[e][0]):
                     if(l==0):
                         zpl_code+="^XA\n^MD10\n^PR4\n^MTD\n^LH0,0\n^PW720\n^LL240\n"
+                        zpl_code+=f"^FO-50,40^A0N,40,40^FD {data[code][1]} ^FS\n"
                         zpl_code+=f"^FO-50,70^BY2^BCN,120,Y,N,N^FD{code}^FS \n"
                         
                         l+=1
                     else:
+                        zpl_code+=f"^FO440,40^A0N,40,40^FD {data[code][1]} ^FS\n"
                         zpl_code+=f"^FO440,70^BY2^BCN,120,Y,N,N^FD{code}^FS \n"
                         zpl_code+="^XZ \n"
                         l=0
@@ -125,6 +127,8 @@ def print_endpoint():
             case 'labels':
                 json_data = json.loads(request.data)
                 response = json.dumps(printer.print_label(json_data))
+                # response = 'hola'
+                print(json_data)
                 break
             case 'zpl':
                 json_data = json.loads(request.data)

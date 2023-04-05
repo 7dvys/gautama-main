@@ -32,7 +32,7 @@
                         <span class="state">nuevo codigo</span>
                         <span class="spinner-border spinner-border-sm visually-hidden" role="status" aria-hidden="true"></span>
                     </button>
-                    <button type="button" class="btn btn-outline-secondary user-select-all" value="newCode" disabled="true" ></button>
+                    <button type="button" class="btn btn-outline-secondary user-select-all" value="updateNewCode"></button>
                 </div>
                 <div class="btn-group">
                     <button type="button" class="btn btn-success" value="append">agregar</button>
@@ -131,6 +131,7 @@
             this.labels = printerDiv.getElementsByClassName('labels')[0];
             this.rows= [];
             this.buttons = [];
+            this.cacheKeys = [];
             this.setButtons();
             this.updateNewCodeButton()
             this.appendNewRow()
@@ -171,6 +172,10 @@
                             // this.updateNewCodeButton();
                             this.appendNewCode()
                             break;
+
+                        case 'updateNewCode':
+                            this.updateNewCodeButton()
+                            break;
                         
                         case 'append':
                             this.appendNewRow()
@@ -195,12 +200,15 @@
         updateNewCodeButton(){
             this.buttons['appendNewCode'].block();
             this.buttons['appendNewCode'].loading();
+            this.buttons['updateNewCode'].block()
             
             this.getNewCode()
             .then(e=>{
-                this.buttons['newCode'].setText(e);
+                this.buttons['updateNewCode'].setText(e);
                 this.buttons['appendNewCode'].clearLoading();
                 this.buttons['appendNewCode'].unblock();
+                this.buttons['updateNewCode'].unblock()
+
                 this.newCode = e;
             })
         }
@@ -218,12 +226,28 @@
         appendNewRow(withCode=''){
             const id = this.rowsCounter;
             const row = new Row(this.labels,id,withCode);
+
             row.getRemoveButton().addEventListener('click',()=>{
                 this.removeRow(row)
             })
 
             if(this.rows.length == 0){
                 row.blockRemoveButton()
+            }else{
+                const currentRow = this.getLastRow();
+                const value = currentRow.getInputValues().code.value
+                this.checkCode(value.trim()).then(e=>{
+                    if(e){
+                        currentRow.setInputTrue();
+                        currentRow.setTitle(e);
+                        this.sendPrint();
+                    }else{
+                        currentRow.setInputFalse();
+                    }
+                    currentRow.setChangeDetect();
+                    this.buttons['print'].clearLoading();
+                    this.buttons['print'].unblock();
+                })
             }
 
             this.rows[id]=row;
@@ -239,15 +263,23 @@
 
         checkCode(code){
             const endpoint = "{{ url_for('cbapi.code')}}?search="+code
-            return fetchGet(endpoint)
+            return fetchGet(endpoint).then(e=>{
+                this.cacheKeys[code]=e;
+                return e
+            })
         }
 
         setLastRowFocus(){
+            
+            this.getLastRow().focusSelf();
+        }
+
+        getLastRow(){
             let lastRow;
             for(const row in this.rows){
                 lastRow=this.rows[row];
             }
-            lastRow.focusSelf();
+            return lastRow
         }
         
         print(){
@@ -295,13 +327,14 @@
                     i++;
                 }else{
                     if(key !== '' && value !== ''){
-                        data[key]=parseInt(value);
+                        data[key]=[parseInt(value),this.cacheKeys[key].slice(0,17)+'...'];
                     }
                     key='';
                     i=0;
                 }
             }
-
+            console.log(data)
+            
             if (Object.keys(data).length !== 0){
             const endpoint = "{{ url_for('printer.print_endpoint') }}?labels";
             fetchPost(endpoint,data).then(e=>{
