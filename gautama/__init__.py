@@ -44,11 +44,11 @@ def create_app(test_config=None):
             'descripcion':'No gastes tiempo e imprimi todas tus etiquetas de una vez!',
             'url_endpoint':'printer.printer_index'
         },
-        {
-            'titulo':'Imap',
-            'descripcion':'Desde aqui podra controlar las facturas que llegan al email!',
-            'url_endpoint':'imap.imap_index'
-        },
+        # {
+        #     'titulo':'Imap',
+        #     'descripcion':'Desde aqui podra controlar las facturas que llegan al email!',
+        #     'url_endpoint':'imap.imap_index'
+        # },
         {
             'titulo':'Cbapi',
             'descripcion':'Integracion contabilium',

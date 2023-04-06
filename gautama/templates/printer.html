@@ -28,15 +28,19 @@
             <div class="btn-toolbar justify-content-between">
 
                 <div class="btn-group">
-                    <button type="button" class="btn btn-dark" value="appendNewCode">
+                    <button type="button" class="btn btn-dark" value="updateNewCode">
                         <span class="state">nuevo codigo</span>
                         <span class="spinner-border spinner-border-sm visually-hidden" role="status" aria-hidden="true"></span>
                     </button>
-                    <button type="button" class="btn btn-outline-secondary user-select-all" value="updateNewCode"></button>
+                    <button class="btn btn-outline-secondary user-select-all" value="newCode" disabled></button>
                 </div>
                 <div class="btn-group">
-                    <button type="button" class="btn btn-success" value="append">agregar</button>
 
+                    <button type="button" class="btn btn-success" value="append">
+                        <span class="state">agregar</span>
+                        <span class="spinner-border spinner-border-sm visually-hidden" role="status" aria-hidden="true"></span>
+                    </button>
+                    
                     <button type="button" class="btn btn-primary" value="print">
                         <span class="state">imprimir</span>
                         <span class="spinner-border spinner-border-sm visually-hidden" role="status" aria-hidden="true"></span>
@@ -154,7 +158,7 @@
                     this.removeAttribute('disabled');
                 }
 
-                if(button.value == 'appendNewCode' || button.value == 'print'){
+                if(button.value == 'updateNewCode' || button.value == 'print' || button.value == 'append'){
                     button.loading = function(){
                         this.children[0].classList.add('visually-hidden')
                         this.children[1].classList.remove('visually-hidden')
@@ -168,11 +172,6 @@
 
                 button.addEventListener('click',()=>{
                     switch (button.value) {
-                        case 'appendNewCode':
-                            // this.updateNewCodeButton();
-                            this.appendNewCode()
-                            break;
-
                         case 'updateNewCode':
                             this.updateNewCodeButton()
                             break;
@@ -198,32 +197,26 @@
         }
 
         updateNewCodeButton(){
-            this.buttons['appendNewCode'].block();
-            this.buttons['appendNewCode'].loading();
-            this.buttons['updateNewCode'].block()
+            this.buttons['updateNewCode'].block();
+            this.buttons['updateNewCode'].loading();
             
-            this.getNewCode()
+            return this.getNewCode()
             .then(e=>{
-                this.buttons['updateNewCode'].setText(e);
-                this.buttons['appendNewCode'].clearLoading();
-                this.buttons['appendNewCode'].unblock();
-                this.buttons['updateNewCode'].unblock()
+                this.buttons['newCode'].setText(e);
+                this.buttons['updateNewCode'].clearLoading();
+                this.buttons['updateNewCode'].unblock();
 
                 this.newCode = e;
             })
         }
 
         appendNewCode(){
-            if(!this.newCode){
-                this.updateNewCodeButton();
-                this.appendNewRow(this.newCode);
-            }else{
-                this.appendNewRow(this.newCode);
-                this.updateNewCodeButton();
+                this.updateNewCodeButton().then(e=>{
+                    this.appendNewRow(this.newCode);
+                });
             }
-        }
 
-        appendNewRow(withCode=''){
+        async appendNewRow(withCode=''){
             const id = this.rowsCounter;
             const row = new Row(this.labels,id,withCode);
 
@@ -231,47 +224,98 @@
                 this.removeRow(row)
             })
 
-            if(this.rows.length == 0){
-                row.blockRemoveButton()
-            }else{
-                const currentRow = this.getLastRow();
-                const value = currentRow.getInputValues().code.value
-                
-                if(Object.keys(this.cacheKeys).indexOf(value)>=0){
-                    currentRow.setInputTrue();
-                    currentRow.setTitle(this.cacheKeys[value]);
-                }else{
-                    
-                    this.checkCode(value.trim()).then(e=>{
-                        if(e){
-                            currentRow.setInputTrue();
-                            currentRow.setTitle(e);
-                        }else{
-                            currentRow.setInputFalse();
-                        }   
-                    })
-                }
-                currentRow.setChangeDetect();
-                this.buttons['print'].clearLoading();
-                this.buttons['print'].unblock();
+            if(this.getRowCount() >= 1 ){
+                await this.checkAllCodes();
             }
 
             this.rows[id]=row;
             this.rowsCounter++
 
-            this.setLastRowFocus();
+            this.setLastRowFocus();            
         }  
+     
+        async checkAllCodes(){
+            let state = true;
+            let response = true;
+            this.buttons['print'].block();
+            this.buttons['appendNewCode'].block();
+            this.buttons['append'].block();
+            this.buttons['append'].loading()
+
+            for(const row in this.rows){                
+                const currentRow = this.rows[row];
+                const code = currentRow.getInputValues().code.value.trim();
+                const quantity = parseInt(currentRow.getInputValues().quantity.value);
+
+                currentRow.blockRemoveButton();
+                currentRow.setInputClear();
+
+                if(code == '' || quantity == 0){
+                    this.removeRow(currentRow)
+                }else{
+                    if(this.checkCodeInCache(code)){
+                        if(this.cacheKeys[code]){
+                            currentRow.setInputTrue();
+                            currentRow.setTitle(this.cacheKeys[code]);
+                        }else{
+                            currentRow.setInputFalse();
+                            state = false;
+                        }
+                        currentRow.setChangeDetect();
+
+                    }else{
+
+                        state = await this.checkCode(code)
+                        .then(e=>{
+                            if(e){
+                                currentRow.setInputTrue();
+                                currentRow.setTitle(this.cacheKeys[code]);
+                                return true;
+                            }else{
+                                currentRow.setInputFalse();
+                                return false;
+                            }
+                            currentRow.setChangeDetect();
+                        })
+                    }
+                }
+
+                currentRow.unblockRemoveButton();
+
+            }          
+
+            this.buttons['print'].unblock();
+            this.buttons['append'].clearLoading()
+
+            this.buttons['appendNewCode'].unblock();
+            this.buttons['append'].unblock();
+
+            return state;
+        }
+
+        checkCodeInCache(code){
+            if(Object.keys(this.cacheKeys).indexOf(code)>=0){
+                return true
+            }else{
+                return false
+            }
+        }
 
         removeRow(row){
-            delete this.rows[row.removeRow()]
-            this.setLastRowFocus();
+            if(this.getRowCount() == 1){
+                row.setInputValues('');
+            }else{
+                delete this.rows[row.removeRow()]
+                this.setLastRowFocus();
+            }
         }
 
         checkCode(code){
             const endpoint = "{{ url_for('cbapi.code')}}?search="+code
+
             return fetchGet(endpoint).then(e=>{
                 this.cacheKeys[code]=e;
-                return e
+                return e;
             })
         }
 
@@ -286,61 +330,35 @@
             }
             return lastRow
         }
+
+        getRowCount(){
+            let count = 0;
+            for(const row in this.rows){
+                count++;
+            }
+            return count
+        }
         
         print(){
-            let state = true;
-            let currentRowCount = this.rows.length;
-            for(const row in this.rows){
-                currentRowCount--;
-                const currentRow = this.rows[row];
-                const value = currentRow.getInputValues().code.value
-                const quantity = currentRow.getInputValues().quantity.value
-
-                if (quantity >0) {
-                    if(value.trim() != '' ){
-                        this.buttons['print'].block();
-                        this.buttons['print'].loading();
-                        if(Object.keys(this.cacheKeys).indexOf(value)>=0){
-                            currentRow.setInputTrue();
-                            currentRow.setTitle(this.cacheKeys[value]);
-                            currentRow.setChangeDetect();
-                            this.buttons['print'].clearLoading();
-                            this.buttons['print'].unblock();
-
-                            if(currentRowCount == 0 && state == true){
-                                this.sendPrint()
-                            }
-                            
-                        }else{
-                            this.checkCode(value.trim()).then(e=>{
-                                if(e){
-                                    currentRow.setInputTrue();
-                                    currentRow.setTitle(e);
-                                }else{
-                                    currentRow.setInputFalse();
-                                    state = false;
-                                }
-
-
-                                currentRow.setChangeDetect();
-                                this.buttons['print'].clearLoading();
-                                this.buttons['print'].unblock();
-
-                                if(currentRowCount == 0 && state == true){
-                                    this.sendPrint()
-                                }
-                            })
-                        } 
-                    }else{
-                        if(this.rows.length > 1 && currentRow.id != 0){
-                            this.removeRow(currentRow);
-                        }
-                    }
+    
+            this.checkAllCodes().then(e=>{
+                if(e){
+                    this.sendPrint();
+                    this.removeAllRows();
                 }
+            })
+               
+            
+        }
+
+        removeAllRows(){
+            for(const row in this.rows){
+                const currentRow = this.rows[row];
+                currentRow.setInputClear();
+                this.removeRow(currentRow);
             }
         }
 
-        
         sendPrint(){
             const form = this.labels.parentElement;
             const formData = new FormData(form);
@@ -349,28 +367,25 @@
             let i = 0;
             for(const value of formData.values()){
                 if (i==0) {
-                    key=`${value}`;
+                    key=`${value.trim()}`;
                     i++;
                 }else{
                     if(key !== '' && value !== ''){
-                        console.log(this.cacheKeys)
-                        console.log(this.cacheKeys[key])
-                        console.log(key)
                         data[key]=[parseInt(value),this.cacheKeys[key].slice(0,28)+'...'];
                     }
                     key='';
                     i=0;
                 }
             }
-            console.log(data)
             
             if (Object.keys(data).length !== 0){
-            const endpoint = "{{ url_for('printer.print_endpoint') }}?labels";
-            fetchPost(endpoint,data).then(e=>{
-                printerWork.printWorks()
+                const endpoint = "{{ url_for('printer.print_endpoint') }}?labels";
+                fetchPost(endpoint,data).then(e=>{
+                    printerWork.printWorks()
 
-            })
+                })
             }
+            console.log(data)
         }
     }
 
@@ -417,6 +432,7 @@
         }
 
         removeRow(){
+            
             this.body.remove()
             return this.id;
         }
@@ -436,6 +452,12 @@
         getInputValues(){
             let values = this.body.getElementsByTagName('input');
             return values
+        }
+
+        setInputValues(code,quantity='1'){
+            const inputs = this.getInputValues()
+            inputs.code.value = code;
+            inputs.quantity.value = quantity;
         }
 
         setInputFalse(){
@@ -504,7 +526,6 @@
                 fetchPost(endpoint,zpl).then(e=>{
                     this.buttons['print'].unblock();
                     this.buttons['print'].clearLoading();
-                    console.log("imprimiendo")
                     printerWork.printWorks()
                 }).catch(e=>{
                     this.buttons['print'].unblock();
