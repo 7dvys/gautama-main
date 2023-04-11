@@ -1,0 +1,546 @@
+{% extends "layout/default.html" %}
+{% block content %}
+<div class="container">
+    <div class="card mt-4">
+
+        <div class="card-header text-center">
+                <div class="spinner-border spinner-border-sm" role="status"></div>
+                <span class="fs-5">Cargando base de datos... </span>
+        </div>
+        
+        <div class="card-body p-3">
+            <form action="" class="row g-3 justify-content-end align-items-start">
+                <div id="file" class="fieldDiv col-md-4">
+                    <label class="form-label">Lista de Precios</label>
+                    <input class="form-control" type="file" name="file">
+                </div>
+
+                <div id="sheet" class="fieldDiv col-md-4">
+                    <label class="form-label">Hoja a Utilizar</label>
+                    <select name="sheet" class="form-select">
+                    </select>
+                </div>
+
+                <div id="vendorCod" class="fieldDiv col-md-2">
+                    <label class="form-label">Numero de Proveedor</label>
+                    <input name="vendorCod" type="number" placeholder="Nro. Proveedor" class="form-control">
+                </div>
+
+                <div id="desc" class="fieldDiv col-md-2">
+                    <label class="form-label">Descuento</label>
+                    <input name="desc" type="number" placeholder="Descuento" value="0" class="form-control">
+                </div>
+
+                <div id="sku" class="fieldDiv col-md-2">
+                    <label class="form-label">Columna Sku Proveedor</label>
+                    <input type="text" name="sku" placeholder="Letra o numerico a partir del 1" class="form-control">
+                </div>
+
+                <div id="name" class="fieldDiv col-md-2">
+                    <label class="form-label">Columna Nombre</label>
+                    <input type="text" name="name" placeholder="Letra o numerico a partir del 1" class="form-control">
+                </div>
+
+                <div id="cost" class="fieldDiv col-md-3">
+                    <label class="form-label">Columna Costo</label>
+                    
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" placeholder="Letra o numerico a partir del 1" name="cost">
+                        <label class="input-group-text" >con Iva incluido</label>
+
+                        <div class="input-group-text">
+                            <input class="form-check-input mt-0" type="checkbox" name="ivaCheck" >
+                        </div>
+                    </div>
+                </div>
+
+                <div id="iva" class="fieldDiv col-md-1">
+                    <label class="form-label">Iva</label>
+                    
+                    <input type="text" class="form-control" name="iva">
+                   
+                </div>
+
+                <div id="profit" class="fieldDiv col-md-3">
+                    <label class="form-label">Rentabilidad</label>
+
+                    <div class="input-group mb-3">
+
+                        <input name="profit" type="number" title="Si el articulo no tiene rentabilidad en contabilium o no existe, se colocara la que ingrese. Caso contrario se dejara la que ya existe salvo que elija sobreescribir. Sobreescribir: Coloca esta rentabilidad en todos los articulos aunque ya exista una rentabilidad." placeholder="Rentabilidad" class="form-control">
+                        <label class="input-group-text">Sobreescribir</label>
+
+                        <div class="input-group-text">
+                            <input class="form-check-input mt-0" type="checkbox" name="rewrite">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="submit" class="fieldDiv col-md-1 submitDiv">
+                    <label class="form-label">:)</label>                    
+                    <input name="submit" type="button" class="btn btn-primary" value="Procesar">
+                </div>
+
+            </form>
+        </div>
+    </div>
+    
+    <div class="card mt-3 overflow-hidden visually-hidden" >
+        <div class="table-responsive">
+            <div class="btn-group">
+                <button class="btn btn-danger">Cancelar</button>
+                <button class="btn btn-success">Enviar</button>
+
+            </div>
+            <table class="table table-hover table-bordered m-3">
+            </table>
+
+        </div>
+
+    </div>
+
+
+</div>
+
+<script>
+
+    // Fetch Metods => promise => json
+    function fetchGet(endpoint){
+        const url = "{{request.url_root[:-1]}}"+endpoint;
+        const promise = fetch(url,{
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+            }
+        })
+        .then(response => response.json())    
+        return promise;    
+    }
+
+    function fetchPost(endpoint,data=''){
+        const url = "{{request.url_root[:-1]}}"+endpoint;
+        const promise = fetch(url,{
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+
+            },
+            body: JSON.stringify(data),
+            })
+            .then(response => response.json())
+            
+        return promise
+    }
+
+    function fetchPostData(endpoint,data=''){
+        const url = "{{request.url_root[:-1]}}"+endpoint;
+        const promise = fetch(url,{
+            method: "POST",
+            body: data
+            })
+            .then(response => response.json())
+            
+        return promise
+    }    
+
+    class PricesChanger{
+
+        constructor(card){
+            this.body = card.getElementsByClassName('card-body')[0];
+            this.header = card.getElementsByClassName('card-header')[0];
+            this.inputs = [];
+            this.inputDivs = [];
+
+            this.setInputDivs()
+            this.setInputsFromDivs();
+            this.setInputsGeneralFunctions()
+            this.setInputsSpecificFunctions()
+            this.setDisabledAllInputs();
+            this.loadDb()
+            this.inputs['file'].clearDisabled()
+            this.inputs['vendorCod'].clearDisabled()
+        }
+
+        loadDb(){
+            const url = "{{request.url_root[:-1]}}/precios/load_db";
+            this.inputs['submit'].classList.add('visually-hidden')
+            fetch(url,{
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                }
+            })
+            .then(response => {
+                if(response.status == '500'){
+                    this.loadDb()
+                }else{
+                    this.inputs['submit'].classList.remove('visually-hidden')
+                    this.setClearHeader()
+                }
+            })
+        }
+
+        setHeaderLoading(title = 'cargando...'){
+            const span = this.header.getElementsByTagName('span')[0]
+            const spinner = this.header.getElementsByTagName('div')[0]
+
+            spinner.classList.remove('visually-hidden')
+            span.classList.add('visually-hidden')
+            span.textContent = title
+        }
+        
+        setClearHeader(title = 'Actualizar precios'){
+            const span = this.header.getElementsByTagName('span')[0]
+            const spinner = this.header.getElementsByTagName('div')[0]
+
+            spinner.classList.add('visually-hidden')
+            span.textContent = title
+        }
+
+        getInputDivs(){
+            const divs = this.body.getElementsByClassName('fieldDiv');
+            return divs;
+        }
+
+        setInputDivs(){
+            const divs = this.body.getElementsByClassName('fieldDiv');
+            for(const div of divs){
+                this.inputDivs[div.id]=div
+            }
+        }
+        
+        setInputsFromDivs(){
+            const divs = this.inputDivs;
+
+            for (const div in divs){
+                const currentDiv = divs[div];
+                const input =currentDiv.getElementsByTagName('select')[0];
+
+                if (currentDiv.id=='sheet') {
+                    const input =currentDiv.getElementsByTagName('select')[0]
+                    this.inputs[input.name]= input
+
+                } else if(currentDiv.id=='cost' || currentDiv.id == 'profit'){
+                    const input = currentDiv.getElementsByTagName('input')[0]
+                    const checkbox = currentDiv.getElementsByTagName('input')[1]
+
+                    this.inputs[checkbox.name]=checkbox
+                    this.inputs[input.name]=input
+                } else {
+                    const input = currentDiv.getElementsByTagName('input')[0]
+                    this.inputs[input.name]= input
+                }
+            }
+        }
+
+        setInputsGeneralFunctions(){
+            const inputs = this.inputs;
+            for(const input in inputs){
+                inputs[input].setDisabled = function(){
+                    this.setAttribute('disabled',true)
+                }
+
+                inputs[input].clearDisabled = function(){
+                    this.removeAttribute('disabled')
+                }
+
+                inputs[input].setFalse = function(){
+                    this.classList.add('border','border-danger')
+                }
+
+                inputs[input].clearFalse = function (){
+                    this.classList.remove('border','border-danger')
+                }
+
+                inputs[input].clearValue = function(){
+                    this.value = ''
+                }
+            }
+        }
+
+        setInputsSpecificFunctions(){
+            const inputs = this.inputs;
+            for(const input in inputs){
+                const currentInput = inputs[input]
+                switch (input) {
+                    case 'file':
+                        this.fileFunction(currentInput);
+                        break;
+
+                    case 'submit':
+                        this.submitFunction(currentInput)
+
+                        break;
+
+                    case 'ivaCheck':
+                        currentInput.addEventListener('change',input=>{
+                            if(input.target.checked){
+                                this.inputs['iva'].value = 0;
+                                this.inputs['iva'].setDisabled()
+                            }else{
+                                this.inputs['iva'].clearDisabled()
+                                this.inputs['iva'].value = '';
+                            }
+                        })
+                        this.appendCheckInputs(currentInput)
+
+                        break;
+                    default:
+                        this.appendCheckInputs(currentInput)
+                        break;
+                }
+            }         
+            // 
+        }
+
+        clearAllValues(){
+            for(const input in this.inputs){
+                console.log(input)
+            }
+        }
+
+        fileFunction(input){
+            input.addEventListener('change',e=>{
+                if(e.target.files[0]){
+                    this.clearAllValues()
+                    pricesTable.setHidden(e);
+
+                    const formData = new FormData();
+                    formData.append('file',e.target.files[0]);
+
+                    this.setDisabledVariables()
+                    this.deleteSheetsOptions()
+
+                    fetchPostData('/precios/upload_xlsx',formData).then(sheets=>{
+                        if(sheets != {}){
+                            this.generateSheetsOptions(sheets)
+                        }
+                    
+                    })
+                }
+            })
+        }
+
+        submitFunction(input){
+            input.addEventListener('click',e=>{
+                const formData = this.appendInputsToForm();
+
+                this.submit(formData)
+            })
+        }
+
+        appendCheckInputs(input){
+            input.addEventListener('change',e=>{
+                if(this.checkInputsValues()){
+                    this.inputs['submit'].clearDisabled()
+                    const formData = this.appendInputsToForm();
+                    this.prerender(formData)
+                }
+            });
+        }
+
+        prerender(formData){
+            fetchPostData("/precios/prerender",formData)
+            .then(e=>{
+                pricesTable.createTable(e);
+            })
+            // this.setHeaderLoading()
+            // this.inputs['submit'].setDisabled()
+            // borrar prerender
+            // crear prerender
+        }
+
+        submit(formData){
+            // set button loading 
+            if(this.checkInputsValues()){
+                fetchPostData("{{url_for('precios.pre_render_submit')}}",formData)
+                .then(e=>{
+                pricesTable.createTable(e);
+                })
+            }
+        }
+
+        appendInputsToForm(){
+            const formData = new FormData()
+            for(const input in this.inputs){
+                const currentInput = this.inputs[input];
+
+                switch (input) {
+                    case 'rewrite':
+                        if(currentInput.checked){
+                            formData.append(input,true)
+                        }else{
+                            formData.append(input,false)
+                        }
+                        break;
+
+                    case 'submit':
+                        break
+
+                    case 'ivaCheck':
+                        if(currentInput.checked){
+                            formData.append(input,true)
+                        }else{
+                            formData.append(input,false)
+                        }
+                        break;
+                        
+                    case 'file':
+                        const file = currentInput.files[0]
+                        formData.append(input,file)
+                        break;
+
+                    default:
+                        formData.append(input,currentInput.value)
+                        break;
+                }
+            }
+            return formData;
+        }
+
+        checkInputsValues(){
+            let state = true
+            for(const input in this.inputs){
+                const currentInput = this.inputs[input]
+                currentInput.clearFalse()
+                if (input != 'file' && input != 'desc' && input != 'ivaCheck' &&input != 'rewrite') {
+                    if (currentInput.value == '') {
+                        state = false;
+                        currentInput.setFalse()
+                        this.inputs['submit'].setDisabled()
+                    }
+                }
+            }
+            return state;
+        }
+
+
+        
+        deleteSheetsOptions(){
+            while (this.inputs['sheet'].firstChild) {
+                this.inputs['sheet'].removeChild(this.inputs['sheet'].firstChild);
+            }
+        }
+        //  Cadena de acontecimientos. 
+        generateSheetsOptions(sheets){
+            this.inputs['sheet'].clearDisabled();
+
+            // Existen las diferentes opciones
+            // Primero borramos las opciones
+
+
+            for(const sheet of sheets){
+                const option = document.createElement('option')
+                option.setAttribute('value',sheet);
+                option.textContent = sheet;
+                this.inputs['sheet'].appendChild(option)
+            }
+
+            // Event para displayear columnas precio y sku, no hace falta ya que no todas las columnas van a ser iguales. Algunas ni formato logico van a tener
+
+            this.clearDisabledVariables()
+
+        }
+
+        setDisabledVariables(){
+            this.inputs['sku'].setDisabled();
+            this.inputs['cost'].setDisabled();
+            this.inputs['ivaCheck'].setDisabled();
+            this.inputs['rewrite'].setDisabled();
+            this.inputs['profit'].setDisabled();
+            this.inputs['desc'].setDisabled();
+            this.inputs['iva'].setDisabled();
+            this.inputs['name'].setDisabled();
+        }
+
+        clearDisabledVariables(){
+            this.inputs['sku'].clearDisabled()
+            this.inputs['cost'].clearDisabled()
+            this.inputs['ivaCheck'].clearDisabled()
+            this.inputs['rewrite'].clearDisabled()
+            this.inputs['profit'].clearDisabled()
+            this.inputs['desc'].clearDisabled()
+            this.inputs['iva'].clearDisabled()
+            this.inputs['name'].clearDisabled()
+        }
+
+        setDisabledAllInputs(){
+            const inputs = this.inputs;
+            for(const input in inputs){
+                const currentInput = inputs[input];
+                currentInput.setDisabled();
+            }
+        }
+    }
+
+    class PricesTable{
+
+        constructor(card){
+            this.body = card;
+            this.table = card.getElementsByClassName('table')[0]
+            this.buttons = this.body.getElementsByTagName('button')
+        }
+
+        createTable(data){
+            this.clearHidden()
+            this.deleteTable()
+
+            // create table content
+            const thead = document.createElement('thead')
+            const tbody = document.createElement('tbody')
+
+            for(const rowIndex in data ){
+                const currentRow = data[rowIndex];
+                const tr = document.createElement('tr');
+                const trHead = document.createElement('tr');
+                for(const keyValue in currentRow){
+                    const value = currentRow[keyValue]
+                    if(rowIndex == 0){
+                        const th = document.createElement('th');
+                        th.textContent = keyValue;
+
+                        trHead.appendChild(th);
+                    }
+
+                    const td = document.createElement('td')
+                    td.textContent = value;
+
+                    tr.appendChild(td)
+                }
+
+                if(rowIndex == 0){
+                    thead.appendChild(trHead)
+                }
+                tbody.appendChild(tr)
+            }
+
+            this.table.appendChild(thead)
+            this.table.appendChild(tbody)
+        }
+
+        setHidden(){
+            this.body.classList.add('visually-hidden');
+        }
+
+        clearHidden(){
+            this.body.classList.remove('visually-hidden');
+        }
+        
+        deleteTable(){
+            while (this.table.firstChild) {
+                this.table.removeChild(this.table.firstChild);
+            }
+        }
+        
+    }
+
+    const cardPriceCharger = document.getElementsByClassName('card')[0]
+    const changer = new PricesChanger(cardPriceCharger);
+
+    const cardTable = document.getElementsByClassName('card')[1]
+    const pricesTable = new PricesTable(cardTable);
+
+    
+</script>
+
+<!-- Script porque vamos a manejar todo asincrono :) -->
+{% endblock %}

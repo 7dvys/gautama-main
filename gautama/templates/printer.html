@@ -238,7 +238,6 @@
             let state = true;
             let response = true;
             this.buttons['print'].block();
-            this.buttons['appendNewCode'].block();
             this.buttons['append'].block();
             this.buttons['append'].loading()
 
@@ -287,7 +286,6 @@
             this.buttons['print'].unblock();
             this.buttons['append'].clearLoading()
 
-            this.buttons['appendNewCode'].unblock();
             this.buttons['append'].unblock();
 
             return state;

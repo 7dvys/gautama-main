@@ -10,16 +10,21 @@ CREATE TABLE cbVendors(
 );
 
 CREATE TABLE cbProducts(
-  id INTEGER PRIMARY KEY,
+  id TEXT PRIMARY KEY,
   nombre TEXT,
   codigo TEXT,
   codigo_barras INTEGER,
+  descripcion TEXT,
+  precio INTEGER,
+  precio_final INTEGER,
   iva REAL,
   rentabilidad REAL,
   costo_interno REAL,
   observaciones TEXT,
-  estado TEXT,
   tipo TEXT,
   id_rubro INTEGER,
-  id_subrubro INTEGER
+  id_subrubro INTEGER,
+  items TEXT
 );
+
+

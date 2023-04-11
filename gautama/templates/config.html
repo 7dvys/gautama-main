@@ -1,3 +1,64 @@
 {% extends "layout/default.html" %}
 {% block content %}
+<div class="container">
+    <div class="card w-50 mx-auto mt-4">
+        <form enctype="multipart/form-data" method="post" action="{{url_for('config.set_config')}}">
+            <div class="card-header">Configuracion</div>
+            <div class="card-body">
+                <h5 class="card-title">Credenciales Contabilium</h5>
+                <div class="row mb-3">
+                    {% if  config['cbUser'] != '' and config['cbPassword'] != '' %}
+                    <div class="form-text">Actualmente logueado en: {{config['cbUser']}}</div>
+                    {% endif%}
+                    <label  class="col-sm-2 col-form-label" >Email</label>
+                    <div class="col-sm-10">
+                        <input name="cbUser" type="email" class="form-control" {{ "value="+config['cbUser'] if 'cbUser' in config and 'cbPassword' in config }}>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <label for="inputPassword3" class="col-sm-2 col-form-label">Password</label>
+                    <div class="col-sm-10">
+                        <input name="cbPassword" type="password" class="form-control" id="inputPassword3">
+                    </div>
+                </div>
+
+                <h5 class="card-title">Configuracion de impresoras</h5>
+                <div class="row mb-3">
+                    <label  class="col-sm-2 col-form-label">Etiquetas grandes</label>
+                    <div class="col-sm-10">
+                        <select name="bigPrinter" class="form-select" aria-label="Default select example">
+                            <option></option>
+                            {% for printer in printers%}
+                                {% if printer == config['bigPrinter']%}
+                                <option selected>{{printer}}</option>
+                                {% else %}
+                                <option>{{printer}}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <label for="inputPassword3" class="col-sm-2 col-form-label">Etiquetas Peque;as</label>
+                    <div class="col-sm-10">
+                        <select name="smallPrinter" class="form-select" aria-label="Default select example">
+                            <option></option>
+                            {% for printer in printers%}
+                                {% if printer == config['smallPrinter']%}
+                                <option selected>{{printer}}</option>
+                                {% else %}
+                                <option>{{printer}}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                
+                <button type="submit" class="btn btn-primary">Confirmar</button>
+            </div>
+        </form>
+    </div>
+</div>
+    
 {% endblock %}

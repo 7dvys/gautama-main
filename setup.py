@@ -9,6 +9,10 @@ setup(
         'flask_cors',
         'flask',
         'requests',
-        'pyuwsgi'
+        'pyuwsgi',
+        'cryptography',
+        'openpyxl',
+        'pandas',
+        'sqlalchemy'
     ]
 )

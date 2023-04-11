@@ -1,7 +1,7 @@
 from flask import Blueprint,render_template,session,jsonify,request
-from gautama.db import get_db,init_db
 import requests
 from datetime import datetime
+from .config import Config
 
 bp = Blueprint('cbapi',__name__,url_prefix='/cbapi')
 
@@ -14,19 +14,24 @@ class Cbapi:
     token = None
     
     def __init__(self):
+        config = Config()
+        self.cbUser = config.get_config()['cbUser']
+        cbPassword = config.get_config()['cbPassword']
+        self.cbPassword = config.decrypt(cbPassword)
+
         if self.token is not None:
             self.check_token()
         else:
             self.set_token()
-        pass
+
 
     def get_token(self):
         endpoint = '/token'
 
         data = {
             'grant_type':'client_credentials',
-            'client_id':'rpm.empleados@outlook.es',
-            'client_secret':'123456'
+            'client_id':self.cbUser,
+            'client_secret':self.cbPassword
         }
 
         headers= {'Content-Type':'application/x-www-form-urlencoded'}
@@ -81,13 +86,12 @@ class Cbapi:
         total_items_count = response.json()['TotalItems']
         items_per_page=50
 
-        n_pages = (total_items_count//items_per_page)
-        final_page=1+n_pages
-        final_page_size=total_items_count%items_per_page
-        return n_pages,final_page,final_page_size
+
+        n_pages = (total_items_count//items_per_page)+1 #entero
+        return n_pages
     
     def get_cbProducts(self,filtro="",type_return="tuple"):
-        n_pages, final_page, final_page_size= self.get_total_items_count()
+        n_pages = self.get_total_items_count()
         all_products = []
 
         for page in range(n_pages):
@@ -96,23 +100,16 @@ class Cbapi:
             products=response.json()['Items']
             all_products.extend(products)
 
-        endpoint = f"/api/conceptos/search?pageSize={final_page_size}&page={final_page}&filtro={filtro}"
-        response = self.do_request(endpoint=endpoint, token=True)
-        products=response.json()['Items']
-        all_products.extend(products)
-
-
         for product in all_products:
             product.pop('CodigoOem',None)
-            product.pop('PrecioFinal',None)
-            product.pop('Precio',None)
             product.pop('Stock',None)
             product.pop('StockMinimo',None)
+            product.pop('Estado',None)
             product.pop('Foto',None)
             product.pop('IDMoneda',None)
+            product.pop('AplicaRG5329',None)
             product.pop('ListasDePrecio',None)
-            product.pop('Items',None)
-            product.pop('Descripcion',None)
+
         
         if(type_return == 'tuple'):
             tupla = [tuple(product.values()) for product in all_products]
@@ -123,30 +120,10 @@ class Cbapi:
         
     def get_cbVendors(self):
         #Queda pendiente. Quizas sea mejor crear una Db e ingresarlo manualmente junto al email. Eso seria optimo para combinarlo con IMAP!
+
         pass
     
-    def fill_cbProducts_db(self):
-        data = self.get_cbProducts()
-        self.exec_many_inserts(table='cbProducts',data=data,n_fields=12)
 
-    def exec_many_inserts(self,table,data,n_fields):
-        db = get_db()
-        cur = db.cursor()
-        cur.executemany(f"insert into {table} values({('?,'*n_fields)[:-1]})",data)
-        db.commit()
-
-    def exec_sql(self,sql):
-        db = get_db()
-        cur = db.cursor()
-        execute = cur.execute(sql)
-        rows =execute.fetchall()
-        db.commit()
-        return rows
-
-    # Posible endpoint
-    def update_tables(self):
-        init_db()
-        self.fill_cbProducts_db()
 
     # Endpoint
     def get_last_codigo(self):
@@ -198,8 +175,8 @@ class Cbapi:
 @bp.route('/token')
 def token():
     cbapi = Cbapi()
-    cbapi.get_new_code()
-    return 'hola'
+    return cbapi.get_token().json()['access_token']
+    
 
 @bp.route('/code',methods=['GET'])
 def code():
@@ -216,4 +193,6 @@ def code():
                 break
             
     return jsonify(response)
+
+
 

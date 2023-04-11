@@ -1,4 +1,0 @@
-flask_cors
-flask
-requests
-pyuwsgi

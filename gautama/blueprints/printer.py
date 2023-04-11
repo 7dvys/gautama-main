@@ -1,5 +1,5 @@
 from flask import Blueprint,render_template,jsonify,json,request
-from .cbapi import Cbapi
+from .config import Config 
 
 bp = Blueprint('printer',__name__,url_prefix='/printer')
 
@@ -10,6 +10,13 @@ def printer_index():
 
 # Printer Function
 class Printer:
+    
+    def __init__(self):
+        
+        self.data_config = Config().get_config()
+        self.bigPrinter_name = self.data_config['bigPrinter']
+        self.smallPrinter_name = self.data_config['smallPrinter']
+
     def create_zpl(self,data):
         zpl_code=''
         l=0
@@ -38,7 +45,7 @@ class Printer:
         except Exception as e:
             return 'error interno'
 
-    def exec(self,zpl_code,printer_name="GAINSCHA_GS-2406T"):
+    def exec(self,zpl_code,printer_name):
         import subprocess
 
         # Nombre de la impresora
@@ -72,21 +79,25 @@ class Printer:
         except Exception as e:
             return 'error interno: '+e
 
-    def cancel_all_works(self):
-        import subprocess
+    # def cancel_all_works(self):
+    #     import subprocess
 
-        printer_name = 'GAINSCHA_GS-2406T'
+    #     printer_name = 'GAINSCHA_GS-2406T'
 
-        try:
-            result = subprocess.run(['lprm','-P',printer_name,'-'],stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    #     try:
+    #         result = subprocess.run(['lprm','-P',printer_name,'-'],stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-            if result.returncode != 0:
-                return result.stderr.decode(), None
-            else:
-                return result.stdout.decode()
-        except Exception as e:
-            return 'error interno: '+e
+    #         if result.returncode != 0:
+    #             return result.stderr.decode(), None
+    #         else:
+    #             return result.stdout.decode()
+    #     except Exception as e:
+    #         return 'error interno: '+e
 
+
+    def cancel_current_work(self):
+        self.exec('^XA^MNN^XZ',self.bigPrinter_name)
+        self.exec('^XA^MNN^XZ',self.smallPrinter_name)
 
     def get_works(self):
         import subprocess
@@ -113,10 +124,11 @@ class Printer:
 
     def print_label(self,data):
         zpl = self.create_zpl(data)
-        print(zpl)
-        return self.exec(zpl)
+        printer_name = self.smallPrinter_name
+        return self.exec(zpl,printer_name)
 
-    def print_zpl(self,zpl_code,printer_name="GAINSCHA_GS-2406T"):
+    def print_zpl(self,zpl_code):
+        printer_name = self.bigPrinter_name
         return self.exec(zpl_code,printer_name)
     
 
@@ -132,7 +144,7 @@ def print_endpoint():
                 break
             case 'zpl':
                 json_data = json.loads(request.data)
-                response = json.dumps(printer.print_zpl(json_data,"GAINSCHA_BIG"))
+                response = json.dumps(printer.print_zpl(json_data))
                 break
             case 'cancelWork':
                 work =request.args['cancelWork'].rsplit('-',1)
@@ -150,7 +162,7 @@ def print_endpoint():
                 break    
                 
             case 'cancelCurrentWork':   
-                response = printer.exec('^XA^MNN^XZ',"GAINSCHA_BIG")
+                response = printer.cancel_current_work()
                 break
 
     return jsonify(response)
