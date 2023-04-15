@@ -1,5 +1,0 @@
-include gautama/schema.sql
-graft gautama/blueprints
-graft gautama/templates
-graft gautama/static
-global-exclude *.pyc

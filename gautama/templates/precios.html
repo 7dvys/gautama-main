@@ -22,8 +22,9 @@
                 </div>
 
                 <div id="vendorCod" class="fieldDiv col-md-2">
-                    <label class="form-label">Numero de Proveedor</label>
-                    <input name="vendorCod" type="number" placeholder="Nro. Proveedor" class="form-control">
+                    <label class="form-label">Proveedor</label>
+                    <select name="vendorCod" class="form-select">
+                    </select>
                 </div>
 
                 <div id="desc" class="fieldDiv col-md-2">
@@ -66,17 +67,12 @@
 
                     <div class="input-group mb-3">
 
-                        <input name="profit" type="number" title="Si el articulo no tiene rentabilidad en contabilium o no existe, se colocara la que ingrese. Caso contrario se dejara la que ya existe salvo que elija sobreescribir. Sobreescribir: Coloca esta rentabilidad en todos los articulos aunque ya exista una rentabilidad." placeholder="Rentabilidad" class="form-control">
-                        <label class="input-group-text">Sobreescribir</label>
-
-                        <div class="input-group-text">
-                            <input class="form-check-input mt-0" type="checkbox" name="rewrite">
-                        </div>
+                        <input name="profit" type="number" placeholder="Rentabilidad" class="form-control">
                     </div>
                 </div>
 
                 <div id="submit" class="fieldDiv col-md-1 submitDiv">
-                    <label class="form-label">:)</label>                    
+                    <label id="carita" class="form-label">:)</label>                    
                     <input name="submit" type="button" class="btn btn-primary" value="Procesar">
                 </div>
 
@@ -84,18 +80,23 @@
         </div>
     </div>
     
-    <div class="card mt-3 overflow-hidden visually-hidden" >
-        <div class="table-responsive">
+    <div class="card card-body mt-3 table-responsive">
+        <div class="header btn-toolbar justify-content-between">
+            <span></span>
+
             <div class="btn-group">
-                <button class="btn btn-danger">Cancelar</button>
-                <button class="btn btn-success">Enviar</button>
-
+                <button type="button" class="btn btn-danger" >cancelar</button>
+                <button type="button" class="btn btn-success" >aceptar</button>
             </div>
-            <table class="table table-hover table-bordered m-3">
-            </table>
-
         </div>
-
+        
+        <table class="table table-xl">
+            <thead>
+            </thead>
+            <tbody>
+            </tbody>
+                
+        </table>   
     </div>
 
 
@@ -147,20 +148,20 @@
         constructor(card){
             this.body = card.getElementsByClassName('card-body')[0];
             this.header = card.getElementsByClassName('card-header')[0];
-            this.inputs = [];
-            this.inputDivs = [];
+            this.inputs = {};
+            this.inputDivs = {};
 
             this.setInputDivs()
             this.setInputsFromDivs();
             this.setInputsGeneralFunctions()
             this.setInputsSpecificFunctions()
             this.setDisabledAllInputs();
-            this.loadDb()
-            this.inputs['file'].clearDisabled()
-            this.inputs['vendorCod'].clearDisabled()
+            this.setVendorsOptions();
+            this.loadDb();
         }
 
         loadDb(){
+            this.setHeaderLoading('Cargando base de datos...')
             const url = "{{request.url_root[:-1]}}/precios/load_db";
             this.inputs['submit'].classList.add('visually-hidden')
             fetch(url,{
@@ -170,13 +171,16 @@
                 }
             })
             .then(response => {
-                if(response.status == '500'){
-                    this.loadDb()
-                }else{
+                    if(response.state!== 500){
                     this.inputs['submit'].classList.remove('visually-hidden')
                     this.setClearHeader()
-                }
+                    }else{
+                        this.loadDb()
+                    }
             })
+
+            // this.inputs['submit'].classList.remove('visually-hidden')
+            //         this.setClearHeader()
         }
 
         setHeaderLoading(title = 'cargando...'){
@@ -184,7 +188,6 @@
             const spinner = this.header.getElementsByTagName('div')[0]
 
             spinner.classList.remove('visually-hidden')
-            span.classList.add('visually-hidden')
             span.textContent = title
         }
         
@@ -215,11 +218,11 @@
                 const currentDiv = divs[div];
                 const input =currentDiv.getElementsByTagName('select')[0];
 
-                if (currentDiv.id=='sheet') {
+                if (currentDiv.id=='sheet' || currentDiv.id=='vendorCod') {
                     const input =currentDiv.getElementsByTagName('select')[0]
                     this.inputs[input.name]= input
 
-                } else if(currentDiv.id=='cost' || currentDiv.id == 'profit'){
+                } else if(currentDiv.id=='cost'){
                     const input = currentDiv.getElementsByTagName('input')[0]
                     const checkbox = currentDiv.getElementsByTagName('input')[1]
 
@@ -292,18 +295,25 @@
             // 
         }
 
-        clearAllValues(){
-            for(const input in this.inputs){
-                console.log(input)
-            }
+        setVendorsOptions(){
+            const endpoint = '{{url_for("cbapi.get_vendors")}}'
+            fetchGet(endpoint).then(vendors =>{
+                this.inputs['file'].clearDisabled()
+                for(const key in vendors){
+                    const vendor = vendors[key]
+                    const option = document.createElement('option');
+                    option.setAttribute('value',vendor['Codigo'])
+                    option.textContent = vendor['Codigo']+'.'+vendor['NombreFantasia']
+                    
+                    this.inputs['vendorCod'].append(option)
+                }
+
+            })
         }
 
         fileFunction(input){
             input.addEventListener('change',e=>{
                 if(e.target.files[0]){
-                    this.clearAllValues()
-                    pricesTable.setHidden(e);
-
                     const formData = new FormData();
                     formData.append('file',e.target.files[0]);
 
@@ -323,7 +333,6 @@
         submitFunction(input){
             input.addEventListener('click',e=>{
                 const formData = this.appendInputsToForm();
-
                 this.submit(formData)
             })
         }
@@ -331,6 +340,7 @@
         appendCheckInputs(input){
             input.addEventListener('change',e=>{
                 if(this.checkInputsValues()){
+                    document.getElementById('carita').textContent= ':)'
                     this.inputs['submit'].clearDisabled()
                     const formData = this.appendInputsToForm();
                     this.prerender(formData)
@@ -341,12 +351,10 @@
         prerender(formData){
             fetchPostData("/precios/prerender",formData)
             .then(e=>{
-                pricesTable.createTable(e);
+                priceTable.generateTable(e);
+                priceTable.hiddenButtons()
+
             })
-            // this.setHeaderLoading()
-            // this.inputs['submit'].setDisabled()
-            // borrar prerender
-            // crear prerender
         }
 
         submit(formData){
@@ -354,7 +362,10 @@
             if(this.checkInputsValues()){
                 fetchPostData("{{url_for('precios.pre_render_submit')}}",formData)
                 .then(e=>{
-                pricesTable.createTable(e);
+                priceTable.setPreConfigData(formData)
+                priceTable.generateTable(e,true);
+                priceTable.unblockButtons();
+                priceTable.clearHiddenButtons()
                 })
             }
         }
@@ -365,14 +376,6 @@
                 const currentInput = this.inputs[input];
 
                 switch (input) {
-                    case 'rewrite':
-                        if(currentInput.checked){
-                            formData.append(input,true)
-                        }else{
-                            formData.append(input,false)
-                        }
-                        break;
-
                     case 'submit':
                         break
 
@@ -402,11 +405,12 @@
             for(const input in this.inputs){
                 const currentInput = this.inputs[input]
                 currentInput.clearFalse()
-                if (input != 'file' && input != 'desc' && input != 'ivaCheck' &&input != 'rewrite') {
+                if (input != 'file' && input != 'desc' && input != 'ivaCheck') {
                     if (currentInput.value == '') {
                         state = false;
                         currentInput.setFalse()
                         this.inputs['submit'].setDisabled()
+                        document.getElementById('carita').textContent= ':('
                     }
                 }
             }
@@ -438,29 +442,28 @@
             // Event para displayear columnas precio y sku, no hace falta ya que no todas las columnas van a ser iguales. Algunas ni formato logico van a tener
 
             this.clearDisabledVariables()
-
         }
 
         setDisabledVariables(){
             this.inputs['sku'].setDisabled();
             this.inputs['cost'].setDisabled();
             this.inputs['ivaCheck'].setDisabled();
-            this.inputs['rewrite'].setDisabled();
             this.inputs['profit'].setDisabled();
             this.inputs['desc'].setDisabled();
             this.inputs['iva'].setDisabled();
             this.inputs['name'].setDisabled();
+            this.inputs['vendorCod'].setDisabled();
         }
 
         clearDisabledVariables(){
             this.inputs['sku'].clearDisabled()
             this.inputs['cost'].clearDisabled()
             this.inputs['ivaCheck'].clearDisabled()
-            this.inputs['rewrite'].clearDisabled()
             this.inputs['profit'].clearDisabled()
             this.inputs['desc'].clearDisabled()
             this.inputs['iva'].clearDisabled()
             this.inputs['name'].clearDisabled()
+            this.inputs['vendorCod'].clearDisabled()
         }
 
         setDisabledAllInputs(){
@@ -470,51 +473,130 @@
                 currentInput.setDisabled();
             }
         }
+
+        clearDisabledAllInputs(){
+            const inputs = this.inputs;
+            for(const input in inputs){
+                const currentInput = inputs[input];
+                currentInput.clearDisabled();
+            }
+        }
     }
 
-    class PricesTable{
-
+    class PriceTable{
         constructor(card){
-            this.body = card;
-            this.table = card.getElementsByClassName('table')[0]
-            this.buttons = this.body.getElementsByTagName('button')
+            this.body = card
+            this.table = card.getElementsByTagName('table')[0]
+            this.span = card.getElementsByTagName('span')[0]
+            this.table.thead = this.table.getElementsByTagName('thead')[0]
+            this.table.tbody = this.table.getElementsByTagName('tbody')[0]
+            this.rows = {}
+            this.buttons = {}
+            this.buttons['cancel'] = this.body.getElementsByTagName('button')[0]
+            this.buttons['accept'] = this.body.getElementsByTagName('button')[1]
+            this.lastPrerenderData= {};
+            this.hiddenButtons()
+            this.blockButtons()
+            this.setButtons()
+            this.setHidden()
+
         }
 
-        createTable(data){
-            this.clearHidden()
-            this.deleteTable()
+        hiddenButtons(){
+            this.buttons['accept'].classList.add('visually-hidden')
+            this.buttons['cancel'].classList.add('visually-hidden')
+        }
 
-            // create table content
-            const thead = document.createElement('thead')
-            const tbody = document.createElement('tbody')
+        blockButtons(){
+            this.buttons['accept'].setAttribute('disabled',true)
+            this.buttons['cancel'].setAttribute('disabled',true)
+        }
 
-            for(const rowIndex in data ){
-                const currentRow = data[rowIndex];
-                const tr = document.createElement('tr');
-                const trHead = document.createElement('tr');
-                for(const keyValue in currentRow){
-                    const value = currentRow[keyValue]
-                    if(rowIndex == 0){
-                        const th = document.createElement('th');
-                        th.textContent = keyValue;
+        unblockButtons(){
+            this.buttons['accept'].removeAttribute('disabled')
+            this.buttons['cancel'].removeAttribute('disabled')
+        }
 
-                        trHead.appendChild(th);
+        clearHiddenButtons(){
+            this.buttons['accept'].classList.remove('visually-hidden')
+            this.buttons['cancel'].classList.remove('visually-hidden')
+
+        }
+
+        setPreConfigData(formData){
+            const iva = formData.get('iva')
+            const profit = formData.get('profit')
+            const ivaCheck = formData.get('ivaCheck')
+            const vendorCod = formData.get('vendorCod')
+            const desc = formData.get('desc')
+            this.preConfig = {'iva':iva,'profit':profit,'ivaCheck':ivaCheck,'vendorCod':vendorCod,'desc':desc}
+        }
+
+        setButtons(){
+            this.buttons['accept'].addEventListener('click',e=>{
+                // Debe enviar Set data para que se procese a cbapi put :)
+                const dataForm = this.formatData(this.setData());
+                const endpoint = '{{url_for("precios.submit")}}';
+                changer.setDisabledAllInputs()
+                changer.setHeaderLoading('Modificando datos...')
+                this.blockButtons()
+                const father = this;
+                fetchPost(endpoint,dataForm).then(e=>{
+                    changer.setClearHeader()
+                    changer.clearDisabledAllInputs()
+                    father.clearHiddenButtons()
+                    if(e === true){
+                        changer.loadDb()
+                        father.generateTable(father.lastPrerenderData)
+                        father.hiddenButtons()
                     }
+                })
+            })
+            this.buttons['cancel'].addEventListener('click',e=>{
+                this.generateTable(this.lastPrerenderData)
+                this.hiddenButtons()
+            })
+        }
 
-                    const td = document.createElement('td')
-                    td.textContent = value;
+        formatData(rows){
+            let newData = {};
+            for(const key in rows){
+                let row = rows[key];
+                    
+                const final = parseFloat(row['final'])
+                let iva = parseFloat(row['iva'])
+                let desc = parseFloat(this.preConfig['desc'])
+                let profit = parseFloat(this.preConfig['profit'])
+                let vendorCod = this.preConfig['vendorCod']
 
-                    tr.appendChild(td)
+                if((this.preConfig['iva'] == 0 || this.preConfig['ivaCheck']) && row['iva'] == 0){
+                    iva = 21;
                 }
 
-                if(rowIndex == 0){
-                    thead.appendChild(trHead)
-                }
-                tbody.appendChild(tr)
+                const ivaFactor = (iva/100)+1
+                const descFactor = 1-(desc/100)
+                const profitFactor =(profit/100)+1
+                const rentFactor = profitFactor/descFactor 
+                
+                const precio = parseFloat(final/ivaFactor);
+                const costo = parseFloat(precio/rentFactor);
+                const rentabilidad = (rentFactor-1)*100
+
+                row['costo_interno']=costo;
+                row['precio']=precio;
+                row['vendorCod']=vendorCod;
+                row['iva']=iva;
+                row['rentabilidad']=rentabilidad;
+
+
+                newData[key]=row;
             }
+            
+            return newData;          
+        }
 
-            this.table.appendChild(thead)
-            this.table.appendChild(tbody)
+        setSpan(content){
+            this.span.textContent= content;
         }
 
         setHidden(){
@@ -524,20 +606,173 @@
         clearHidden(){
             this.body.classList.remove('visually-hidden');
         }
-        
-        deleteTable(){
-            while (this.table.firstChild) {
-                this.table.removeChild(this.table.firstChild);
+
+        generateTable(rows,submit=false){
+            this.clearHidden()
+            let span;
+            if(submit){
+
+                span = `articulos: ${rows.length}`
+            }else{
+                this.lastPrerenderData = rows;
+                span = "previsualizacion (solo se mostraran 10 articulos)"
+            }
+            this.setSpan(span)
+            this.clearTable()
+            let n = 0;
+            if(n == 0 ){
+                const row = new PriceRow();
+                this.table.thead.append(row.genTHead(rows[0],submit))
+            }
+
+            for(const row of rows){
+                const newRow = new PriceRow();
+                this.rows[n]=newRow;
+                this.table.tbody.append(newRow.genTBody(row,submit))
+                n++;
+            }
+
+            this.appendButtonFunction()
+        }
+
+        appendButtonFunction(){
+            for(const key in this.rows){
+                const row = this.rows[key];
+
+                row.button.addEventListener('click',e=>{
+                    row.body[0].remove()
+                    delete this.rows[key];       
+                })
             }
         }
+
+        setData(){
+            let dataForm = {}
+            for(const key in this.rows){
+                const data= this.rows[key].data;
+                dataForm[key]=data;
+            }
+            return dataForm;
+        }
         
+        clearTable(){
+            while(this.table.thead.firstChild){
+                this.table.thead.removeChild(this.table.thead.firstChild)
+            }
+
+            for(const key in this.rows){
+                const currentRow = this.rows[key]
+
+                currentRow.body[0].remove()
+                delete this.rows[key];
+            }
+        }
+
+
     }
 
+    class PriceRow{
+        constructor(){
+            this.data = {}
+            this.body = {}
+            this.tds = {}
+        }
+
+        genTHead(row,submit=false){
+            const tr = document.createElement('tr');
+            for(const key in row){
+                if (submit){   
+                    if( key != 'codigo_barras' && key != 'id' && key != 'old_precio' && key != 'iva' && key != 'estado' && key != 'tipo' && key != 'id_rubro' && key != 'sku_proveedor'){
+                        const th = document.createElement('th');
+                        th.textContent = key;
+                        tr.append(th);
+                    }
+                }else{
+                    const th = document.createElement('th');
+                        th.textContent = key;
+                        tr.append(th);
+                }
+            }
+
+            const th = document.createElement('th');
+            th.textContent = '-';
+            tr.append(th)
+            return tr;
+        }
+
+        genTBody(row,submit=false){
+            const tr = document.createElement('tr');
+            for(const key in row){
+                const value = row[key]
+                if (submit ) {  
+                    if(key != 'codigo_barras' && key != 'id' && key != 'old_precio' && key != 'iva' && key != 'estado' && key != 'tipo' && key != 'id_rubro' && key != 'sku_proveedor'){
+                        const td = document.createElement('td');
+                        if(key == 'variacion'){
+                            td.textContent = value+'%';
+                        }else if(key == 'final'){
+                            const input = document.createElement('input')
+                            input.setAttribute('type','text')
+                            input.setAttribute('value',value)
+                            this.appendInputFunction(input);
+                            td.append(input)
+                        }else{
+                            td.textContent = value;
+                        }
+                        
+                        this.tds[key] = td;
+                        tr.append(td);
+                    }
+                }else{
+                    const td = document.createElement('td');
+                    td.textContent = value;
+                    if(key == 'variacion'){
+                        td.textContent = value+'%';
+                    }
+                    tr.append(td);
+                }
+                // Ingreso de data :)
+                this.data[key]=value
+            }
+            // Boton :)
+            const td = document.createElement('td');
+            const button = document.createElement('button')
+            button.classList.add('btn','btn-danger')
+            if(!submit){
+                button.setAttribute('disabled',true)
+            }
+            button.textContent = '-';
+            this.button = button;
+            td.append(button);
+            tr.append(td)
+            this.body[0]=tr;
+            return tr;
+        }
+
+        appendInputFunction(input){
+            input.addEventListener('change',e=>{
+        
+
+                const final = parseFloat(e.target.value);
+                const inicial = parseFloat(this.data['final anterior'])
+
+                this.tds['variacion'].textContent = `${(((final/inicial)*100)-100).toFixed(2)}%`;
+
+                // Modificar valores
+                this.data['final'] = final;
+
+                
+
+            })
+        }
+    }
+
+
+    const cardPriceTable = document.getElementsByClassName('card')[1]
+    const priceTable = new PriceTable(cardPriceTable)
+    
     const cardPriceCharger = document.getElementsByClassName('card')[0]
     const changer = new PricesChanger(cardPriceCharger);
 
-    const cardTable = document.getElementsByClassName('card')[1]
-    const pricesTable = new PricesTable(cardTable);
 
     
 </script>

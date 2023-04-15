@@ -2,6 +2,7 @@ from flask import Blueprint,render_template,session,jsonify,request
 import requests
 from datetime import datetime
 from .config import Config
+import json
 
 bp = Blueprint('cbapi',__name__,url_prefix='/cbapi')
 
@@ -54,7 +55,7 @@ class Cbapi:
         session['token']=token
         self.token = session['token']
 
-    def do_request(self,endpoint,params=None,headers={},token=None,data=None,method='get'):
+    def do_request(self,endpoint,params=None,headers={},json_data=None,token=None,data=None,method='get'):
         if self.token is not None:
             self.check_token()
         
@@ -71,7 +72,7 @@ class Cbapi:
             headers.update({'Authorization':'Bearer '+self.token['access_token']})
 
         request = getattr(requests,method)
-        response = request(location,headers=headers,data=data)
+        response = request(location,headers=headers,json=json_data,data=data)
 
         return response    
 
@@ -104,7 +105,6 @@ class Cbapi:
             product.pop('CodigoOem',None)
             product.pop('Stock',None)
             product.pop('StockMinimo',None)
-            product.pop('Estado',None)
             product.pop('Foto',None)
             product.pop('IDMoneda',None)
             product.pop('AplicaRG5329',None)
@@ -118,10 +118,27 @@ class Cbapi:
             return all_products
         
         
-    def get_cbVendors(self):
-        #Queda pendiente. Quizas sea mejor crear una Db e ingresarlo manualmente junto al email. Eso seria optimo para combinarlo con IMAP!
+    def get_total_vendors_count(self):
+        endpoint='/api/proveedores/search?pageSize=1'
+        response = self.do_request(endpoint=endpoint, token=True)
+        total_items = response.json()['TotalItems']
+        n_pages = total_items//50
 
-        pass
+        return n_pages
+        
+    def get_cbVendors(self):
+        n_pages = self.get_total_vendors_count()
+        vendors = []
+        vendors_filtered = []
+        for page in range(n_pages):
+            endpoint=f'/api/proveedores/search?pageSize=0&page={page+1}'
+            response = self.do_request(endpoint=endpoint,token=True)
+            vendors.extend(response.json()['Items'])
+
+        for vendor in vendors:
+            if vendor['Codigo'] is not None:
+                vendors_filtered.append(vendor)
+        return vendors_filtered
     
 
 
@@ -136,13 +153,43 @@ class Cbapi:
                     code = item_codigo
         return code
 
-    def get_new_code(self):
+    def get_six_digits_codes(self):
         items = self.get_cbProducts(type_return='list')
         items_six_digits = []
         for item in items:
             if(len(item['Codigo']) == 6 and item['Codigo'].isnumeric()):
                 items_six_digits.append(item['Codigo'])
         items_six_digits.sort()
+        return items_six_digits
+
+    def get_lot_new_codes(self,quant):
+        items_six_digits = self.get_six_digits_codes()
+        
+        codes = []
+        last_code = 0
+        for code in items_six_digits:
+            if(code == '000000'):
+                current_code = 1
+            else:
+                current_code = int(code.lstrip('0'))
+                
+            operation = current_code - last_code
+            if operation > 1:
+                for n in range(last_code+1,current_code):
+                    if int(len(codes)) < int(quant):
+                        new_code_len = len(str(n))
+                        new_code = f"{'0'*(6-new_code_len)}{n}"
+                        codes.append(new_code)
+                    else:
+                        return codes
+            
+            last_code = current_code
+   
+            
+
+
+    def get_new_code(self):
+        items_six_digits = self.get_six_digits_codes()
         
         def recursive_test(a):
             a_len = len(str(a))
@@ -191,8 +238,29 @@ def code():
             case 'new_code':
                 response = cbapi.get_new_code()
                 break
+            case 'lot_codes':
+                quant = request.args.get('lot_codes')
+                response = cbapi.get_lot_new_codes(quant)
+                break
+
             
     return jsonify(response)
 
+@bp.route('/get_vendors')
+def get_vendors():
+    cbapi = Cbapi()
+    return jsonify(cbapi.get_cbVendors())
 
+@bp.route('/update_products',methods=['POST'])
+def update_products():
+    cbapi = Cbapi()
+    data = request.get_json()
+    for key in data:
+        row = data[key]
+        id_row = row.pop('Id')
+        endpoint = '/api/conceptos/?id='+id_row
+        response = cbapi.do_request(endpoint=endpoint,json_data=row, method='put')
+
+    print('listo :3')
+    return json.dumps('ok')
 

@@ -1,10 +1,13 @@
-from flask import Blueprint, render_template, request,jsonify
+from flask import Blueprint, render_template, request,jsonify,url_for
 from .database import Database 
 import pandas as pd
 from gautama.db import get_db,init_db
+from datetime import datetime
 import numpy
 import openpyxl
 import json
+import requests
+import re
 
 bp = Blueprint('precios',__name__,url_prefix='/precios')
 
@@ -65,7 +68,7 @@ class Precios:
         df['con rentabilidad']=df['con iva']*profit
 
 
-        rentabilidad = f"con rentabilidad: +{rentabilidad}%"
+        rentabilidad = f"con rentabilidad: {rentabilidad}%"
         df = df.rename(columns={'con rentabilidad':rentabilidad})
         
         return df.head(10).round(2).to_dict('records')
@@ -77,7 +80,7 @@ class Precios:
         conn = get_db()
 
         # Recuperamos los datos que nos interesan en un dataframe
-        df = pd.read_sql('select id, nombre, codigo, descripcion, codigo_barras,precio,precio_final,costo_interno,rentabilidad,iva,tipo,id_rubro,observaciones from cbProducts where tipo like "Producto"',con = conn)
+        df = pd.read_sql('select id, nombre, codigo, descripcion, codigo_barras,precio,precio_final,costo_interno,rentabilidad,iva,tipo,id_rubro,observaciones,estado from cbProducts where tipo like "Producto"',con = conn)
 
         # Creamos la db in memory:
         engine = create_engine('sqlite:///:memory:')
@@ -103,7 +106,7 @@ class Precios:
         profit = round((float(formData['profit'])+100)/100,2)
         desc = round((100-float(formData['desc']))/100,2)
         iva = round((float(formData['iva'])+100)/100,2)
-        final_profit = round(profit/desc,2)
+        final_profit = profit/desc
 
         # Primero se le aplica el descuento al costo 
         df[cost] = df[cost]*desc
@@ -116,7 +119,7 @@ class Precios:
         df.to_sql('temp_sheet',con=engine)
         
         # Ahora matcheamos ambas columnas tal que cumplan alguno de los requisitos
-        query = f"select cb.id, cb.codigo,cb.nombre,  cb.descripcion, cb.codigo_barras, cb.costo_interno as 'old_costo',cb.rentabilidad,cb.precio as 'old_precio',cb.iva,cb.precio_final as 'old_final', (t.final/cb.precio_final*100)-100 as 'variacion',t.final, cb.id_rubro from temp_cbProducts cb join temp_sheet t on cb.codigo = t.sku or cb.descripcion = t.sku or cb.codigo_barras = '{vendorCod}.' || t.sku"
+        query = f"select cb.id, cb.codigo,cb.nombre,  cb.descripcion,cb.observaciones, cb.codigo_barras,cb.precio as 'precio anterior',cb.iva,cb.precio_final as 'final anterior', (t.final/cb.precio_final*100)-100 as 'variacion',t.final, cb.id_rubro, t.sku as 'sku_proveedor', cb.tipo, cb.estado from temp_cbProducts cb join temp_sheet t on cb.codigo = t.sku or cb.descripcion = t.sku or cb.codigo_barras = '{vendorCod}.' || t.sku"
 
         filtered_df = pd.read_sql(query,con=engine)
 
@@ -124,8 +127,73 @@ class Precios:
         
         return filtered_df.round(2).to_dict('records')
 
-    def submit(self):
-        pass
+    def submit(self,dataForm):
+        endpoint = f"{request.url_root[:-1]}{url_for('cbapi.code')}?lot_codes={len(dataForm)}"
+        response = requests.get(endpoint)
+        codes = response.content.decode('utf-8')
+        codes = json.loads(codes)
+        # Aqui verificaremos los codigos y lo enviamos uwu
+        # Recorda las mayusculas que usa contabilium
+        # id(se pasa como parámetro en la url), nombre*, Tipo*, Codigo*, Precio*, Iva*, Estado*, IDRubro, descripcion*, codigo_barras*, costo_interno*, precio_final*
+        new_dataForm = {}
+        for key in dataForm:
+            row=dataForm[key]
+            new_row = {}
+
+            codigo = row['codigo']
+            codigo_barras = row['codigo_barras']
+            descripcion = row['descripcion']
+            vendorCod = row['vendorCod']
+            sku_proveedor = row['sku_proveedor']
+
+            if not re.match(r'^0*[0-9]{6}$',codigo):
+                new_row['Codigo']=codes.pop()
+            else:
+                new_row['Codigo']=codigo
+
+            new_codigo_barras = f"{vendorCod}.{sku_proveedor}"
+            if codigo_barras != new_codigo_barras:
+                new_row['CodigoBarras'] = new_codigo_barras
+            else:
+                new_row['CodigoBarras'] = codigo_barras
+
+            if descripcion != sku_proveedor:
+                new_row['Descripcion'] = sku_proveedor
+            else:
+                new_row['Descripcion'] = descripcion
+
+            if row['estado'] == 'Activo':
+                new_row['Estado'] = 'A'
+            else:
+                new_row['Estado'] = 'P'
+                
+            new_row['Iva'] = row['iva']
+
+            if(row['tipo'] == 'Producto'):
+                new_row['Tipo'] = 'P' 
+            else:
+                new_row['Tipo'] = 'C' 
+
+                
+            new_row['Nombre'] = row['nombre']
+            new_row['PrecioFinal'] = row['final']
+            new_row['Precio'] = row['precio']
+            new_row['CostoInterno'] = row['costo_interno']
+            new_row['IdRubro'] = row['id_rubro']
+            new_row['Id'] = row['id']
+
+            ahora = datetime.now()
+            texto_fecha_hora = ahora.strftime("%d/%m/%Y %H:%M")
+            new_row['Observaciones'] = f"ult. Actualizacion: {texto_fecha_hora}"
+
+            new_row['Rentabilidad']=row['rentabilidad']
+            
+            new_dataForm[key]= new_row
+
+        endpoint = f"{request.url_root[:-1]}{url_for('cbapi.update_products')}"
+
+        response = requests.post(url=endpoint,json=new_dataForm)
+        return response.ok
 
     
 # Rutas
@@ -145,9 +213,11 @@ def load():
     precios.update_tables()
     return json.dumps('ok')
 
-@bp.route('/submit')
+@bp.route('/submit',methods=['POST'])
 def submit():
-    pass
+    precios = Precios()
+    data = request.get_json()
+    return json.dumps(precios.submit(data))
 
 @bp.route('/prerender_submit',methods=['POST'])
 def pre_render_submit():

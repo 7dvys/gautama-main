@@ -21,6 +21,7 @@ CREATE TABLE cbProducts(
   rentabilidad REAL,
   costo_interno REAL,
   observaciones TEXT,
+  estado TEXT,
   tipo TEXT,
   id_rubro INTEGER,
   id_subrubro INTEGER,
