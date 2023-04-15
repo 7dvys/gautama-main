@@ -22,7 +22,7 @@
                 </div>
 
                 <div id="vendorCod" class="fieldDiv col-md-2">
-                    <label class="form-label">Proveedor</label>
+                    <label id="vendorLabel" role="button" title="Actualizar" class="form-label">Proveedor</label>
                     <select name="vendorCod" class="form-select">
                     </select>
                 </div>
@@ -156,7 +156,10 @@
             this.setInputsGeneralFunctions()
             this.setInputsSpecificFunctions()
             this.setDisabledAllInputs();
-            this.setVendorsOptions();
+            this.setVendorsOptions().then(e=>{
+                this.inputs['file'].clearDisabled()
+            });
+            this.setVendorReloadButton();
             this.loadDb();
         }
 
@@ -267,6 +270,7 @@
                 switch (input) {
                     case 'file':
                         this.fileFunction(currentInput);
+                        this.appendCheckInputs(currentInput)
                         break;
 
                     case 'submit':
@@ -294,11 +298,15 @@
             }         
             // 
         }
-
+        
         setVendorsOptions(){
+            console.log('az')
             const endpoint = '{{url_for("cbapi.get_vendors")}}'
-            fetchGet(endpoint).then(vendors =>{
-                this.inputs['file'].clearDisabled()
+            const promise = fetchGet(endpoint).then(vendors =>{
+                while (this.inputs['vendorCod'].firstChild) {
+                this.inputs['vendorCod'].removeChild(this.inputs['vendorCod'].firstChild);
+                }
+                
                 for(const key in vendors){
                     const vendor = vendors[key]
                     const option = document.createElement('option');
@@ -307,7 +315,15 @@
                     
                     this.inputs['vendorCod'].append(option)
                 }
+            })
 
+            return promise;
+        }
+
+        setVendorReloadButton(){
+            const vendorLabel = document.getElementById('vendorLabel')
+            vendorLabel.addEventListener('click',e=>{
+                this.setVendorsOptions()
             })
         }
 
@@ -546,9 +562,10 @@
                     changer.clearDisabledAllInputs()
                     father.clearHiddenButtons()
                     if(e === true){
+                        this.buttons['accept'].setAttribute('disabled',true)
                         changer.loadDb()
-                        father.generateTable(father.lastPrerenderData)
-                        father.hiddenButtons()
+                        // father.generateTable(father.lastPrerenderData)
+                        // father.hiddenButtons()
                     }
                 })
             })
@@ -615,7 +632,7 @@
                 span = `articulos: ${rows.length}`
             }else{
                 this.lastPrerenderData = rows;
-                span = "previsualizacion (solo se mostraran 10 articulos)"
+                span = "previsualizacion (solo se mostraran 20 articulos)"
             }
             this.setSpan(span)
             this.clearTable()

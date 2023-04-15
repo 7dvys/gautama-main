@@ -71,7 +71,7 @@ class Precios:
         rentabilidad = f"con rentabilidad: {rentabilidad}%"
         df = df.rename(columns={'con rentabilidad':rentabilidad})
         
-        return df.head(10).round(2).to_dict('records')
+        return df.head(20).round(2).to_dict('records')
 
     def generate_prerender_submit(self, formData, formFile):
         # Recuperar db y crear copia a temporal: 
@@ -146,7 +146,7 @@ class Precios:
             vendorCod = row['vendorCod']
             sku_proveedor = row['sku_proveedor']
 
-            if not re.match(r'^0*[0-9]{6}$',codigo):
+            if not re.match(r'^[0-9]{6}(-[0-9]{1,2})?$',codigo):
                 new_row['Codigo']=codes.pop()
             else:
                 new_row['Codigo']=codigo
