@@ -1,1 +1,0 @@
-Para minimizar al maximo las solicitudes a la Api. Que son un monton... Podriamos verificar la cantidad de items y se hay variacion en ese caso hacer la actualizacion. Luego de eso al hacer cambios de precios modificar la tabla y usar las demas funciones de nuevo codigo y matcheo de datos con la db. En caso de tener que actualizarla se actualizara... Facilito <3
