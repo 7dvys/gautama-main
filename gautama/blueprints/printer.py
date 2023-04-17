@@ -45,6 +45,19 @@ class Printer:
         except Exception as e:
             return 'error interno'
 
+    def format_ml_zpl(self,zpl):
+        instruccion_nueva = "^PW480\n^LL760\n"
+
+        zpl_dividido = zpl.split("^XA")
+
+        for i, seccion in enumerate(zpl_dividido):
+            if i != 0:
+                zpl_dividido[i] = "^XA" + instruccion_nueva + seccion
+
+        nuevo_zpl = "".join(zpl_dividido)
+        
+        return nuevo_zpl
+
     def exec(self,zpl_code,printer_name):
         import subprocess
 
@@ -78,21 +91,8 @@ class Printer:
                 return result.stdout.decode()
         except Exception as e:
             return 'error interno: '+e
-
-    # def cancel_all_works(self):
-    #     import subprocess
-
-    #     printer_name = 'GAINSCHA_GS-2406T'
-
-    #     try:
-    #         result = subprocess.run(['lprm','-P',printer_name,'-'],stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    #         if result.returncode != 0:
-    #             return result.stderr.decode(), None
-    #         else:
-    #             return result.stdout.decode()
-    #     except Exception as e:
-    #         return 'error interno: '+e
+        
+        return 'error interno: '+e
 
 
     def cancel_current_work(self):
@@ -130,6 +130,12 @@ class Printer:
     def print_zpl(self,zpl_code):
         printer_name = self.bigPrinter_name
         return self.exec(zpl_code,printer_name)
+
+    def print_ml_zpl(self,zpl_code):
+        printer_name = self.bigPrinter_name
+        zpl_formated = self.format_ml_zpl(zpl_code)
+        return self.exec(zpl_formated,printer_name)
+
     
 
 #Flask Routes
@@ -144,7 +150,7 @@ def print_endpoint():
                 break
             case 'zpl':
                 json_data = json.loads(request.data)
-                response = json.dumps(printer.print_zpl(json_data))
+                response = json.dumps(printer.print_ml_zpl(json_data))
                 break
             case 'cancelWork':
                 work =request.args['cancelWork'].rsplit('-',1)
