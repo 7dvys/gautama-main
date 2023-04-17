@@ -224,9 +224,9 @@
                 this.removeRow(row)
             })
 
-            if(this.getRowCount() >= 1 ){
-                await this.checkAllCodes();
-            }
+            // if(this.getRowCount() >= 1 ){
+            //     await this.checkAllCodes();
+            // }
 
             this.rows[id]=row;
             this.rowsCounter++
@@ -235,6 +235,7 @@
         }  
      
         async checkAllCodes(){
+            this.blockAllRemoveButtons();
             let state = true;
             let response = true;
             this.buttons['print'].block();
@@ -246,7 +247,7 @@
                 const code = currentRow.getInputValues().code.value.trim();
                 const quantity = parseInt(currentRow.getInputValues().quantity.value);
 
-                currentRow.blockRemoveButton();
+                // currentRow.blockRemoveButton();
                 currentRow.setInputClear();
 
                 if(code == '' || quantity == 0){
@@ -279,9 +280,9 @@
                     }
                 }
 
-                currentRow.unblockRemoveButton();
-
+                
             }          
+            this.unblockAllRemoveButtons();
 
             this.buttons['print'].unblock();
             this.buttons['append'].clearLoading()
@@ -291,6 +292,23 @@
             return state;
         }
 
+        blockAllRemoveButtons(){
+            for(const key in this.rows){
+                const currentRow = this.rows[key];
+
+                currentRow.blockRemoveButton();
+            }
+        }
+
+        unblockAllRemoveButtons(){
+            for(const key in this.rows){
+                const currentRow = this.rows[key];
+
+                currentRow.unblockRemoveButton();
+            }
+        }
+        
+        
         checkCodeInCache(code){
             if(Object.keys(this.cacheKeys).indexOf(code)>=0){
                 return true
@@ -339,14 +357,15 @@
         
         print(){
     
-            this.checkAllCodes().then(e=>{
-                if(e){
-                    this.sendPrint();
-                    this.removeAllRows();
-                }
-            })
-               
-            
+            // this.checkAllCodes().then(e=>{
+            //     if(e){
+            //         this.sendPrint();
+            //         this.removeAllRows();
+            //     }
+            // })            
+
+            this.sendPrint();
+
         }
 
         removeAllRows(){
@@ -369,7 +388,20 @@
                     i++;
                 }else{
                     if(key !== '' && value !== ''){
-                        data[key]=[parseInt(value),this.cacheKeys[key].slice(0,28)+'...'];
+                        // Obtener la fecha y hora actual
+                        var now = new Date();
+
+                        // Formatear la fecha y hora para mostrar solo minutos
+                        var formattedDate = now.toLocaleString('es-AR', { 
+                            year: 'numeric', 
+                            month: '2-digit', 
+                            day: '2-digit',
+                            hour: 'numeric', 
+                            minute: 'numeric', 
+                        });
+
+                        // data[key]=[parseInt(value),this.cacheKeys[key].slice(0,28)+'...'];
+                        data[key]=[parseInt(value),"fecha:"+formattedDate];
                     }
                     key='';
                     i=0;

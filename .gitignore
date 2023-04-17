@@ -1,8 +1,12 @@
 gautama-venv/
 gautama.egg-info/
 dist/
+dist/*
 build/
+build/*
 __pycache__/
+__pycache__/*
+instance/*
 instance/
 *.pyc
 anotaciones 

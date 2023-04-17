@@ -25,7 +25,6 @@ class Printer:
             for e in data:
                 code = e
                 
-                print(len(range(data[e][0])))
                 # '0'*(8 - len(str(e)))+str(e)
                 for label in range(data[e][0]):
                     if(l==0):
@@ -41,6 +40,8 @@ class Printer:
                         l=0
             if (l==1):
                 zpl_code+="^XZ \n"
+            print(zpl_code)
+                
             return zpl_code
         except Exception as e:
             return 'error interno'
@@ -134,7 +135,6 @@ class Printer:
     def print_ml_zpl(self,zpl_code):
         printer_name = self.bigPrinter_name
         zpl_formated = self.format_ml_zpl(zpl_code)
-        print(zpl_formated)
         return self.exec(zpl_formated,printer_name)
 
     

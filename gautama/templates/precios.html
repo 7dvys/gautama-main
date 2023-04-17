@@ -158,6 +158,7 @@
             this.setDisabledAllInputs();
             this.setVendorsOptions().then(e=>{
                 this.inputs['file'].clearDisabled()
+                this.inputs['vendorCod'].clearDisabled()
             });
             this.setVendorReloadButton();
             this.loadDb();
