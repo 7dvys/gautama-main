@@ -46,7 +46,7 @@ class Printer:
             return 'error interno'
 
     def format_ml_zpl(self,zpl):
-        instruccion_nueva = "^PW480\n^LL760"
+        instruccion_nueva = "^PR4\n^MTD\n^LH0,0\n^PW1000\n^LL1900\n"
 
         zpl_dividido = zpl.split("^XA")
 
@@ -151,7 +151,7 @@ def print_endpoint():
                 break
             case 'zpl':
                 json_data = json.loads(request.data)
-                response = json.dumps(printer.print_zpl(json_data))
+                response = json.dumps(printer.print_ml_zpl(json_data))
                 # response = json.dumps(printer.print_ml_zpl(json_data)) funciona mal, imprime a la izquierda y elimna informacion
                 break
             case 'cancelWork':
