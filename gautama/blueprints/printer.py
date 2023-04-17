@@ -46,13 +46,13 @@ class Printer:
             return 'error interno'
 
     def format_ml_zpl(self,zpl):
-        instruccion_nueva = "^PW480\n^LL760\n"
+        instruccion_nueva = "^PW480\n^LL760"
 
         zpl_dividido = zpl.split("^XA")
 
         for i, seccion in enumerate(zpl_dividido):
             if i != 0:
-                zpl_dividido[i] = "^XA" + instruccion_nueva + seccion
+                zpl_dividido[i] = "^XA \n" + instruccion_nueva + seccion
 
         nuevo_zpl = "".join(zpl_dividido)
         
@@ -134,6 +134,7 @@ class Printer:
     def print_ml_zpl(self,zpl_code):
         printer_name = self.bigPrinter_name
         zpl_formated = self.format_ml_zpl(zpl_code)
+        print(zpl_formated)
         return self.exec(zpl_formated,printer_name)
 
     
