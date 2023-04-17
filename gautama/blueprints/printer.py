@@ -151,7 +151,8 @@ def print_endpoint():
                 break
             case 'zpl':
                 json_data = json.loads(request.data)
-                response = json.dumps(printer.print_ml_zpl(json_data))
+                response = json.dumps(printer.print_zpl(json_data))
+                # response = json.dumps(printer.print_ml_zpl(json_data)) funciona mal, imprime a la izquierda y elimna informacion
                 break
             case 'cancelWork':
                 work =request.args['cancelWork'].rsplit('-',1)
